@@ -25,8 +25,8 @@ def test_run_export_json_writes_rows_and_prints_summary(
     ]
 
     monkeypatch.setattr(
-        "ambient_tool.cli.get_recent_observations_for_columns",
-        lambda hours, columns: fake_rows,
+        "ambient_tool.cli.get_observations_for_columns",
+        lambda *, columns, hours=None, since=None: fake_rows,
     )
 
     output_file = tmp_path / "export.json"
@@ -57,8 +57,8 @@ def test_run_export_json_writes_rows_and_prints_summary(
 
 def test_run_export_json_prints_message_when_no_rows(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
-        "ambient_tool.cli.get_recent_observations_for_columns",
-        lambda hours, columns: [],
+        "ambient_tool.cli.get_observations_for_columns",
+        lambda *, columns, hours=None, since=None: [],
     )
 
     run_export_json(
@@ -84,8 +84,8 @@ def test_run_export_json_preserves_requested_field_order(
     ]
 
     monkeypatch.setattr(
-        "ambient_tool.cli.get_recent_observations_for_columns",
-        lambda hours, columns: fake_rows,
+        "ambient_tool.cli.get_observations_for_columns",
+        lambda *, columns, hours=None, since=None: fake_rows,
     )
 
     output_file = tmp_path / "export.json"
@@ -106,7 +106,7 @@ def test_run_export_json_preserves_requested_field_order(
     ]
 
 
-def test_build_parser_parses_export_json_arguments() -> None:
+def test_build_parser_parses_export_json_hours_arguments() -> None:
     parser = build_parser()
 
     args = parser.parse_args(
@@ -126,5 +126,31 @@ def test_build_parser_parses_export_json_arguments() -> None:
     assert args.command == "export"
     assert args.export_format == "json"
     assert args.hours == 12
+    assert args.since is None
+    assert args.fields == ["tempf", "dew_point"]
+    assert args.out == "sample.json"
+
+
+def test_build_parser_parses_export_json_since_arguments() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "export",
+            "json",
+            "--since",
+            "2026-04-10T15:00:00+00:00",
+            "--fields",
+            "tempf",
+            "dew_point",
+            "--out",
+            "sample.json",
+        ]
+    )
+
+    assert args.command == "export"
+    assert args.export_format == "json"
+    assert args.hours is None
+    assert args.since == "2026-04-10T15:00:00+00:00"
     assert args.fields == ["tempf", "dew_point"]
     assert args.out == "sample.json"

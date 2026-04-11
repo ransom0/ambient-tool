@@ -10,7 +10,7 @@ from ambient_tool.client import build_client
 from ambient_tool.export_csv import write_rows_to_csv
 from ambient_tool.export_json import write_rows_to_json
 from ambient_tool.query import (
-    get_recent_observations_for_columns,
+    get_observations_for_columns,
     normalize_observation_columns,
 )
 from ambient_tool.trend import normalize_show_fields, summarize_trends
@@ -329,28 +329,32 @@ def run_trend(
     else:
         print_trend_block(results, hours)
 
-
 def get_export_rows(
     *,
-    hours: int,
     fields: list[str],
+    hours: int | None = None,
+    since: str | None = None,
 ):
     fieldnames = normalize_observation_columns(fields)
-    rows = get_recent_observations_for_columns(
-        hours=hours,
+    rows = get_observations_for_columns(
         columns=fields,
+        hours=hours,
+        since=since,
     )
     return fieldnames, rows
 
+
 def run_export_csv(
     *,
-    hours: int,
     fields: list[str],
     output_path: str,
+    hours: int | None = None,
+    since: str | None = None,
 ) -> None:
     fieldnames, rows = get_export_rows(
-        hours=hours,
         fields=fields,
+        hours=hours,
+        since=since,
     )
 
     if not rows:
@@ -365,15 +369,18 @@ def run_export_csv(
 
     print(f"Exported {len(rows)} row(s) to {output_path}")
 
+
 def run_export_json(
     *,
-    hours: int,
     fields: list[str],
     output_path: str,
+    hours: int | None = None,
+    since: str | None = None,
 ) -> None:
     fieldnames, rows = get_export_rows(
-        hours=hours,
         fields=fields,
+        hours=hours,
+        since=since,
     )
 
     if not rows:
@@ -451,11 +458,15 @@ def build_parser():
         "csv",
         help="Export local observation data to CSV",
     )
-    export_csv_parser.add_argument(
+    export_csv_time_group = export_csv_parser.add_mutually_exclusive_group(required=True)
+    export_csv_time_group.add_argument(
         "--hours",
         type=int,
-        default=24,
         help="Number of hours to look back",
+    )
+    export_csv_time_group.add_argument(
+        "--since",
+        help="ISO-8601 timestamp with timezone, e.g. 2026-04-10T15:00:00+00:00",
     )
     export_csv_parser.add_argument(
         "--fields",
@@ -477,11 +488,15 @@ def build_parser():
         "json",
         help="Export local observation data to JSON",
     )
-    export_json_parser.add_argument(
+    export_json_time_group = export_json_parser.add_mutually_exclusive_group(required=True)
+    export_json_time_group.add_argument(
         "--hours",
         type=int,
-        default=24,
         help="Number of hours to look back",
+    )
+    export_json_time_group.add_argument(
+        "--since",
+        help="ISO-8601 timestamp with timezone, e.g. 2026-04-10T15:00:00+00:00",
     )
     export_json_parser.add_argument(
         "--fields",
@@ -548,12 +563,15 @@ def main() -> None:
             if args.export_format == "csv":
                 run_export_csv(
                     hours=args.hours,
+                    since=args.since,
                     fields=args.fields,
                     output_path=args.out,
                 )
+
             elif args.export_format == "json":
                 run_export_json(
                     hours=args.hours,
+                    since=args.since,
                     fields=args.fields,
                     output_path=args.out,
                 )

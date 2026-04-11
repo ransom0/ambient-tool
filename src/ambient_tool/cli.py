@@ -241,31 +241,44 @@ def format_trend_value(value: float | None) -> str:
 def print_trend_block(results, hours: int) -> None:
     print(f"\nTrend summary: last {hours} hour(s)\n")
 
-    for field, stats in results:
-        print(f"{field.label} ({field.name})")
-        print(f" Latest:  {format_trend_value(stats.latest)} {field.unit}")
-        print(f" Min:     {format_trend_value(stats.min_value)} {field.unit}")
-        print(f" Max:     {format_trend_value(stats.max_value)} {field.unit}")
-        print(f" Avg:     {format_trend_value(stats.avg_value)} {field.unit}")
-        print(f" Samples: {stats.sample_count}")
-        print()
+    for result in results:
+        field = result.field
+        stats = result.stats
+        tendency = result.tendency
+
+    print(f"{field.label} ({field.name})")
+    print(f" Latest:  {format_trend_value(stats.latest)} {field.unit}")
+    print(f" Min:     {format_trend_value(stats.min_value)} {field.unit}")
+    print(f" Max:     {format_trend_value(stats.max_value)} {field.unit}")
+    print(f" Avg:     {format_trend_value(stats.avg_value)} {field.unit}")
+    print(f" Samples: {stats.sample_count}")
+
+    if tendency:
+        print(f" Trend:   {tendency}")
+
+    print()
 
 
 def print_trend_table(results, hours: int) -> None:
-    headers = ["Field", "Latest", "Min", "Max", "Avg", "Samples"]
+    headers = ["Field", "Latest", "Min", "Max", "Avg", "Samples", "Trend"]
     rows: list[list[str]] = []
 
-    for field, stats in results:
-        rows.append(
-            [
-                f"{field.label} ({field.unit})",
-                format_trend_value(stats.latest),
-                format_trend_value(stats.min_value),
-                format_trend_value(stats.max_value),
-                format_trend_value(stats.avg_value),
-                str(stats.sample_count),
-            ]
-        )
+    for result in results:
+        field = result.field
+        stats = result.stats
+        tendency = result.tendency
+
+    rows.append(
+        [
+            f"{field.label} ({field.unit})",
+            format_trend_value(stats.latest),
+            format_trend_value(stats.min_value),
+            format_trend_value(stats.max_value),
+            format_trend_value(stats.avg_value),
+            str(stats.sample_count),
+            tendency or "-",
+        ]
+    )
 
     widths = [len(header) for header in headers]
 

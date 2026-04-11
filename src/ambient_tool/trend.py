@@ -23,6 +23,16 @@ class TrendField:
     required_columns: tuple[str, ...]
     value_getter: Callable[[dict], float | None]
 
+@dataclass(frozen=True)
+class TrendSummary:
+    field: TrendField
+    stats: TrendStatBlock
+    tendency: str | None
+
+@dataclass(frozen=True)
+class TrendAnalysis:
+    stats: TrendStatBlock
+    tendency: str | None
 
 def _get_single(column: str) -> Callable[[dict], float | None]:
     def getter(row: dict) -> float | None:
@@ -159,11 +169,71 @@ def _compute_stats(values: list[float | None]) -> TrendStatBlock:
         sample_count=len(clean_values),
     )
 
+def compute_tendency(
+    values: list[float | None],
+    field_name: str,
+) -> str | None:
+    clean_values = [value for value in values if value is not None]
+
+    if len(clean_values) < 2:
+        return None
+
+    delta = clean_values[-1] - clean_values[0]
+
+    thresholds = {
+        "temp": 1.0,
+        "dewpoint": 1.0,
+        "pressure": 0.02,
+        "humidity": 3.0,
+    }
+
+    threshold = thresholds.get(field_name)
+
+    if threshold is None:
+        return None
+
+    if delta > threshold:
+        return "rising ↑"
+    if delta < -threshold:
+        return "falling ↓"
+    return "steady →"
+
+
+def compute_tendency(
+    values: list[float | None],
+    field_name: str,
+) -> str | None:
+    clean = [v for v in values if v is not None]
+
+    if len(clean) < 2:
+        return None
+
+    delta = clean[-1] - clean[0]
+
+    thresholds = {
+        "temp": 1.0,
+        "dewpoint": 1.0,
+        "pressure": 0.02,
+        "humidity": 3.0,
+    }
+
+    threshold = thresholds.get(field_name)
+
+    if threshold is None:
+        return None  # skip rain fields for now
+
+    if delta > threshold:
+        return "rising ↑"
+    elif delta < -threshold:
+        return "falling ↓"
+    else:
+        return "steady →"
+
 
 def summarize_trends(
     hours: int,
     show_fields: list[str] | None,
-) -> list[tuple[TrendField, TrendStatBlock]]:
+) -> list[TrendSummary]:
     requested_fields = normalize_show_fields(show_fields)
 
     required_columns: list[str] = ["observation_time_utc"]
@@ -176,12 +246,20 @@ def summarize_trends(
 
     rows = get_recent_observations_for_columns(hours=hours, columns=required_columns)
 
-    results: list[tuple[TrendField, TrendStatBlock]] = []
+    results: list[TrendSummary] = []
 
     for field_name in requested_fields:
         field = TREND_FIELDS[field_name]
         values = [field.value_getter(row) for row in rows]
         stats = _compute_stats(values)
-        results.append((field, stats))
+        tendency = compute_tendency(values, field.name)
+
+        results.append(
+            TrendSummary(
+                field=field,
+                stats=stats,
+                tendency=tendency,
+            )
+        )
 
     return results

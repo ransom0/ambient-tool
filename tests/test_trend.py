@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from ambient_tool.trend import (
-    TREND_FIELDS,
-    TrendStatBlock,
-    normalize_show_fields,
-    summarize_trends,
-)
+from ambient_tool.trend import TREND_FIELDS, normalize_show_fields, summarize_trends
 
 
 def test_normalize_show_fields_defaults_to_temp() -> None:
@@ -42,7 +37,8 @@ def test_rain_field_definitions_exist() -> None:
     assert TREND_FIELDS["monthlyrain"].required_columns == ("monthlyrainin",)
     assert TREND_FIELDS["yearlyrain"].required_columns == ("yearlyrainin",)
 
-def test_summarize_trends_computes_stats_and_spread(monkeypatch) -> None:
+
+def test_summarize_trends_computes_stats_spread_and_tendency(monkeypatch) -> None:
     fake_rows = [
         {
             "observation_time_utc": "2026-04-11T00:00:00+00:00",
@@ -81,22 +77,35 @@ def test_summarize_trends_computes_stats_and_spread(monkeypatch) -> None:
         show_fields=["temp", "dewpoint", "spread", "pressure"],
     )
 
-    result_map = {field.name: stats for field, stats in results}
+    result_map = {result.field.name: result for result in results}
 
-    temp_stats = result_map["temp"]
-    assert temp_stats.latest == 68.0
-    assert temp_stats.min_value == 68.0
-    assert temp_stats.max_value == 72.0
-    assert temp_stats.sample_count == 3
+    temp_result = result_map["temp"]
+    assert temp_result.stats.latest == 68.0
+    assert temp_result.stats.min_value == 68.0
+    assert temp_result.stats.max_value == 72.0
+    assert temp_result.stats.sample_count == 3
+    assert temp_result.tendency == "falling ↓"
 
-    spread_stats = result_map["spread"]
-    assert spread_stats.latest == 9.0
-    assert spread_stats.min_value == 9.0
-    assert spread_stats.max_value == 11.0
-    assert spread_stats.avg_value == 10.0
+    dewpoint_result = result_map["dewpoint"]
+    assert dewpoint_result.stats.latest == 59.0
+    assert dewpoint_result.stats.min_value == 59.0
+    assert dewpoint_result.stats.max_value == 61.0
+    assert dewpoint_result.stats.avg_value == 60.0
+    assert dewpoint_result.stats.sample_count == 3
+    assert dewpoint_result.tendency == "steady →"
 
-    pressure_stats = result_map["pressure"]
-    assert pressure_stats.latest == 29.99
-    assert pressure_stats.min_value == 29.99
-    assert pressure_stats.max_value == 30.03
-    assert pressure_stats.sample_count == 3
+    spread_result = result_map["spread"]
+    assert spread_result.stats.latest == 9.0
+    assert spread_result.stats.min_value == 9.0
+    assert spread_result.stats.max_value == 11.0
+    assert spread_result.stats.avg_value == 10.0
+    assert spread_result.stats.sample_count == 3
+    assert spread_result.tendency is None
+
+    pressure_result = result_map["pressure"]
+    assert pressure_result.stats.latest == 29.99
+    assert pressure_result.stats.min_value == 29.99
+    assert pressure_result.stats.max_value == 30.03
+    assert pressure_result.stats.avg_value == 30.01
+    assert pressure_result.stats.sample_count == 3
+    assert pressure_result.tendency == "falling ↓"

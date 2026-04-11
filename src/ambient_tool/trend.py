@@ -27,7 +27,9 @@ class TrendField:
 def _get_single(column: str) -> Callable[[dict], float | None]:
     def getter(row: dict) -> float | None:
         value = row[column]
-        return float(value) if value is not None else None
+        if value is None:
+            return None
+        return float(value)
 
     return getter
 
@@ -90,9 +92,11 @@ def normalize_show_fields(show_fields: list[str] | None) -> list[str]:
 
     for field_name in show_fields:
         key = field_name.strip().lower()
+
         if key not in TREND_FIELDS:
             valid = ", ".join(sorted(TREND_FIELDS))
             raise ValueError(f"Unknown trend field: {field_name}. Valid fields: {valid}")
+
         if key not in seen:
             seen.add(key)
             normalized.append(key)
@@ -121,12 +125,17 @@ def _compute_stats(values: list[float | None]) -> TrendStatBlock:
     )
 
 
-def summarize_trends(hours: int, show_fields: list[str] | None) -> list[tuple[TrendField, TrendStatBlock]]:
+def summarize_trends(
+    hours: int,
+    show_fields: list[str] | None,
+) -> list[tuple[TrendField, TrendStatBlock]]:
     requested_fields = normalize_show_fields(show_fields)
 
     required_columns: list[str] = ["observation_time_utc"]
+
     for field_name in requested_fields:
-        for column in TREND_FIELDS[field_name].required_columns:
+        field = TREND_FIELDS[field_name]
+        for column in field.required_columns:
             if column not in required_columns:
                 required_columns.append(column)
 

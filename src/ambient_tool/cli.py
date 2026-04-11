@@ -236,6 +236,7 @@ def format_trend_value(value: float | None) -> str:
         return "N/A"
     return f"{value:.2f}"
 
+
 def run_trend(show_fields: list[str] | None, hours: int) -> None:
     try:
         normalized_fields = normalize_show_fields(show_fields)
@@ -249,7 +250,7 @@ def run_trend(show_fields: list[str] | None, hours: int) -> None:
         print("No data available for that time range.")
         return
 
-    print(f"\nTrend: last {hours} hours\n")
+    print(f"\nTrend summary: last {hours} hour(s)\n")
 
     for field, stats in results:
         print(f"{field.label} ({field.name})")

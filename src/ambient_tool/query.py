@@ -23,12 +23,15 @@ ALLOWED_OBSERVATION_COLUMNS = {
 }
 
 
-def get_recent_observations_for_columns(hours: int, columns: list[str]):
+def get_recent_observations_for_columns(
+    hours: int,
+    columns: list[str],
+) -> list:
     if hours < 1:
         raise ValueError("hours must be at least 1")
 
-    requested = []
-    seen = set()
+    requested: list[str] = []
+    seen: set[str] = set()
 
     for column in columns:
         if column not in ALLOWED_OBSERVATION_COLUMNS:
@@ -44,7 +47,7 @@ def get_recent_observations_for_columns(hours: int, columns: list[str]):
     select_clause = ", ".join(requested)
 
     with get_connection() as conn:
-        rows = conn.execute(
+        rows: list = conn.execute(
             f"""
             SELECT {select_clause}
             FROM observations

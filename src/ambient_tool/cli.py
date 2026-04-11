@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
+from datetime import UTC, datetime
 from pprint import pprint
 from zoneinfo import ZoneInfo
 
 from ambient_tool.client import build_client
+from ambient_tool.storage import init_db, save_observations
 
 
 def format_device_summary(device) -> str:
@@ -131,6 +132,15 @@ def print_device_names(devices) -> None:
 def print_raw(devices) -> None:
     pprint(devices)
 
+def save_snapshot(devices) -> None:
+    init_db()
+
+    fetched_at_utc = datetime.now(UTC).isoformat()
+    saved_count = save_observations(devices, fetched_at_utc)
+
+    print(f"\nSaved {saved_count} observation(s)")
+    print("Database: ~/.ambient_tool/ambient_weather.db")
+
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -139,6 +149,16 @@ def build_parser():
     )
 
     subparsers = parser.add_subparsers(dest="command")
+
+    snapshot_parser = subparsers.add_parser(
+        "snapshot",
+        help="Fetch current data and save it to the local database"
+    )
+
+    snapshot_parser.add_argument(
+        "--device",
+        help="Device index or exact device name"
+    )
 
     summary_parser = subparsers.add_parser("summary", help="Show summarized weather data")
     summary_parser.add_argument(
@@ -190,6 +210,8 @@ def main() -> None:
         print_device_names(selected_devices)
     elif command == "raw":
         print_raw(selected_devices)
+    elif command == "snapshot":
+        save_snapshot(selected_devices)
     else:
         parser.error(f"Unknown command: {command}")
 

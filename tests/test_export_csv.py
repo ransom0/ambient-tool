@@ -90,8 +90,15 @@ def test_write_rows_to_csv_requires_fieldnames(tmp_path: Path) -> None:
 
 
 def test_write_rows_to_csv_supports_sqlite_row_like_objects(tmp_path: Path) -> None:
-    class FakeRow(dict[str, object]):
-        pass
+    class FakeRow:
+        def __init__(self, data: dict[str, object]) -> None:
+            self._data = data
+
+        def __getitem__(self, key: str) -> object:
+            return self._data[key]
+
+        def keys(self):
+            return self._data.keys()
 
     output_file = tmp_path / "observations.csv"
 

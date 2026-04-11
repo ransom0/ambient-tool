@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Protocol, Sequence
+
+
+class CsvRowLike(Protocol):
+    def __getitem__(self, key: str) -> object: ...
+    def keys(self) -> object: ...
 
 
 def write_rows_to_csv(
     output_path: str | Path,
     fieldnames: Sequence[str],
-    rows: Sequence[Mapping[str, object]],
+    rows: Sequence[CsvRowLike],
 ) -> Path:
     """
-    Write row dictionaries to a CSV file using the provided field order.
+    Write row-like objects to a CSV file using the provided field order.
 
     Missing keys are written as empty strings.
     Extra keys in rows are ignored.
@@ -32,7 +37,10 @@ def write_rows_to_csv(
         writer.writeheader()
 
         for row in rows:
-            normalized_row = {name: row[name] if name in row.keys() else "" for name in fieldnames}
+            available_keys = set(row.keys())
+            normalized_row = {
+                name: row[name] if name in available_keys else "" for name in fieldnames
+            }
             writer.writerow(normalized_row)
 
     return path

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from pprint import pprint
+from zoneinfo import ZoneInfo
 
 from ambient_tool.client import build_client
 
@@ -48,7 +48,6 @@ def format_current_conditions(device) -> str:
     data = device.get("lastData", {})
 
     name = info.get("name", "Unknown Device")
-
     observed = format_observation_time(device)
     tempf = data.get("tempf", "N/A")
     feels_like = data.get("feelsLike", "N/A")
@@ -74,6 +73,41 @@ def format_current_conditions(device) -> str:
     )
 
 
+def get_device_name(device) -> str:
+    return device.get("info", {}).get("name", "Unknown Device")
+
+
+def select_devices(devices, device_selector):
+    if not device_selector:
+        return devices
+
+    selector = device_selector.strip()
+
+    if selector.isdigit():
+        index = int(selector)
+        if index < 1 or index > len(devices):
+            raise ValueError(
+                f"Device index out of range: {index}. Valid range is 1 to {len(devices)}."
+            )
+        return [devices[index - 1]]
+
+    matches = []
+    selector_lower = selector.lower()
+
+    for device in devices:
+        name = get_device_name(device)
+        if name.lower() == selector_lower:
+            matches.append(device)
+
+    if not matches:
+        available = ", ".join(get_device_name(device) for device in devices)
+        raise ValueError(
+            f'No device matched "{device_selector}". Available devices: {available}'
+        )
+
+    return matches
+
+
 def print_summary(devices) -> None:
     print(f"\nDevices found: {len(devices)}\n")
     for device in devices:
@@ -89,7 +123,7 @@ def print_current(devices) -> None:
 def print_device_names(devices) -> None:
     print(f"\nDevices found: {len(devices)}\n")
     for index, device in enumerate(devices, start=1):
-        name = device.get("info", {}).get("name", "Unknown Device")
+        name = get_device_name(device)
         mac = device.get("macAddress", "Unknown MAC")
         print(f"{index}. {name} ({mac})")
 
@@ -106,10 +140,29 @@ def build_parser():
 
     subparsers = parser.add_subparsers(dest="command")
 
-    subparsers.add_parser("summary", help="Show summarized weather data")
-    subparsers.add_parser("current", help="Show current conditions")
-    subparsers.add_parser("devices", help="List device names and MAC addresses")
-    subparsers.add_parser("raw", help="Show raw API response")
+    summary_parser = subparsers.add_parser("summary", help="Show summarized weather data")
+    summary_parser.add_argument(
+        "--device",
+        help="Device index or exact device name",
+    )
+
+    current_parser = subparsers.add_parser("current", help="Show current conditions")
+    current_parser.add_argument(
+        "--device",
+        help="Device index or exact device name",
+    )
+
+    devices_parser = subparsers.add_parser("devices", help="List device names and MAC addresses")
+    devices_parser.add_argument(
+        "--device",
+        help="Device index or exact device name",
+    )
+
+    raw_parser = subparsers.add_parser("raw", help="Show raw API response")
+    raw_parser.add_argument(
+        "--device",
+        help="Device index or exact device name",
+    )
 
     return parser
 
@@ -119,18 +172,24 @@ def main() -> None:
     args = parser.parse_args()
 
     command = args.command or "summary"
+    device_selector = getattr(args, "device", None)
 
     client = build_client()
     devices = client.get_devices()
 
+    try:
+        selected_devices = select_devices(devices, device_selector)
+    except ValueError as exc:
+        parser.error(str(exc))
+
     if command == "summary":
-        print_summary(devices)
+        print_summary(selected_devices)
     elif command == "current":
-        print_current(devices)
+        print_current(selected_devices)
     elif command == "devices":
-        print_device_names(devices)
+        print_device_names(selected_devices)
     elif command == "raw":
-        print_raw(devices)
+        print_raw(selected_devices)
     else:
         parser.error(f"Unknown command: {command}")
 

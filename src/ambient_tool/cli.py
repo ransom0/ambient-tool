@@ -231,13 +231,68 @@ def backfill_history(client, devices, days: int) -> None:
 
     print(f"\nBackfill complete. Total new rows saved: {total_saved}")
 
+
 def format_trend_value(value: float | None) -> str:
     if value is None:
         return "N/A"
     return f"{value:.2f}"
 
 
-def run_trend(show_fields: list[str] | None, hours: int) -> None:
+def print_trend_block(results, hours: int) -> None:
+    print(f"\nTrend summary: last {hours} hour(s)\n")
+
+    for field, stats in results:
+        print(f"{field.label} ({field.name})")
+        print(f" Latest:  {format_trend_value(stats.latest)} {field.unit}")
+        print(f" Min:     {format_trend_value(stats.min_value)} {field.unit}")
+        print(f" Max:     {format_trend_value(stats.max_value)} {field.unit}")
+        print(f" Avg:     {format_trend_value(stats.avg_value)} {field.unit}")
+        print(f" Samples: {stats.sample_count}")
+        print()
+
+
+def print_trend_table(results, hours: int) -> None:
+    headers = ["Field", "Latest", "Min", "Max", "Avg", "Samples"]
+    rows: list[list[str]] = []
+
+    for field, stats in results:
+        rows.append(
+            [
+                f"{field.label} ({field.unit})",
+                format_trend_value(stats.latest),
+                format_trend_value(stats.min_value),
+                format_trend_value(stats.max_value),
+                format_trend_value(stats.avg_value),
+                str(stats.sample_count),
+            ]
+        )
+
+    widths = [len(header) for header in headers]
+
+    for row in rows:
+        for index, value in enumerate(row):
+            widths[index] = max(widths[index], len(value))
+
+    def format_row(values: list[str]) -> str:
+        return " | ".join(
+            value.ljust(widths[index]) for index, value in enumerate(values)
+        )
+
+    print(f"\nTrend summary: last {hours} hour(s)\n")
+    print(format_row(headers))
+    print("-+-".join("-" * width for width in widths))
+
+    for row in rows:
+        print(format_row(row))
+
+    print()
+
+
+def run_trend(
+    show_fields: list[str] | None,
+    hours: int,
+    output_format: str,
+) -> None:
     try:
         normalized_fields = normalize_show_fields(show_fields)
     except ValueError as exc:
@@ -250,16 +305,11 @@ def run_trend(show_fields: list[str] | None, hours: int) -> None:
         print("No data available for that time range.")
         return
 
-    print(f"\nTrend summary: last {hours} hour(s)\n")
+    if output_format == "table":
+        print_trend_table(results, hours)
+    else:
+        print_trend_block(results, hours)
 
-    for field, stats in results:
-        print(f"{field.label} ({field.name})")
-        print(f" Latest: {format_trend_value(stats.latest)} {field.unit}")
-        print(f" Min:    {format_trend_value(stats.min_value)} {field.unit}")
-        print(f" Max:    {format_trend_value(stats.max_value)} {field.unit}")
-        print(f" Avg:    {format_trend_value(stats.avg_value)} {field.unit}")
-        print(f" Samples: {stats.sample_count}")
-        print()
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -275,7 +325,9 @@ def build_parser():
     current_parser = subparsers.add_parser("current", help="Show current conditions")
     current_parser.add_argument("--device", help="Device index or exact device name")
 
-    devices_parser = subparsers.add_parser("devices", help="List device names and MAC addresses")
+    devices_parser = subparsers.add_parser(
+        "devices", help="List device names and MAC addresses"
+    )
     devices_parser.add_argument("--device", help="Device index or exact device name")
 
     raw_parser = subparsers.add_parser("raw", help="Show raw API response")
@@ -289,16 +341,21 @@ def build_parser():
 
     trend_parser = subparsers.add_parser(
         "trend",
-        help="Show trend statistics from local data"
+        help="Show trend statistics from local data",
     )
-
     trend_parser.add_argument(
         "--hours",
         type=int,
         default=24,
         help="Number of hours to look back",
     )
-
+    trend_parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["block", "table"],
+        default="block",
+        help="Output format for trend summaries",
+    )
     trend_parser.add_argument(
         "--show",
         nargs="+",
@@ -350,7 +407,7 @@ def main() -> None:
     elif command == "backfill":
         backfill_history(client, selected_devices, args.days)
     elif command == "trend":
-        run_trend(args.show, args.hours)
+        run_trend(args.show, args.hours, args.output_format)
     else:
         parser.error(f"Unknown command: {command}")
 

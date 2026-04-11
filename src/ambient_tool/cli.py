@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
+import time
+from datetime import UTC, datetime, timedelta
 from pprint import pprint
 from zoneinfo import ZoneInfo
 
 from ambient_tool.client import build_client
-from ambient_tool.storage import init_db, save_observations
+from ambient_tool.storage import (
+    init_db,
+    migrate_add_unique_index,
+    save_historical_observations,
+    save_observations,
+)
 
 
 def format_device_summary(device) -> str:
@@ -132,14 +138,97 @@ def print_device_names(devices) -> None:
 def print_raw(devices) -> None:
     pprint(devices)
 
+
 def save_snapshot(devices) -> None:
     init_db()
+    migrate_add_unique_index()
 
     fetched_at_utc = datetime.now(UTC).isoformat()
     saved_count = save_observations(devices, fetched_at_utc)
 
     print(f"\nSaved {saved_count} observation(s)")
     print("Database: ~/.ambient_tool/ambient_weather.db")
+
+
+def backfill_history(client, devices, days: int) -> None:
+    if days < 1:
+        raise ValueError("--days must be at least 1")
+
+    init_db()
+    migrate_add_unique_index()
+
+    fetched_at_utc = datetime.now(UTC).isoformat()
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+
+    total_saved = 0
+
+    for device in devices:
+        mac = device.get("macAddress")
+        name = get_device_name(device)
+
+        if not mac:
+            print(f"Skipping {name}: missing macAddress")
+            continue
+
+        print(f"\nBackfilling {name} ({mac}) for the last {days} day(s)...")
+
+        end_date = None
+        device_saved = 0
+        page_count = 0
+
+        while True:
+            page_count += 1
+            rows = client.get_device_history(mac, end_date=end_date, limit=288)
+
+            if not rows:
+                break
+
+            kept_rows = []
+            oldest_dt = None
+
+            for row in rows:
+                row_date = row.get("date")
+                if not row_date:
+                    continue
+
+                row_dt = datetime.fromisoformat(row_date.replace("Z", "+00:00"))
+
+                if oldest_dt is None or row_dt < oldest_dt:
+                    oldest_dt = row_dt
+
+                if row_dt >= cutoff:
+                    kept_rows.append(row)
+
+            saved_now = save_historical_observations(
+                mac_address=mac,
+                device_name=name,
+                history_rows=kept_rows,
+                fetched_at_utc=fetched_at_utc,
+            )
+            device_saved += saved_now
+            total_saved += saved_now
+
+            print(
+                f"  Page {page_count}: fetched {len(rows)} row(s), "
+                f"saved {saved_now}, total saved for device {device_saved}"
+            )
+
+            if oldest_dt is None:
+                break
+
+            if oldest_dt < cutoff:
+                break
+
+            oldest_ms = rows[-1].get("dateutc")
+            if not oldest_ms:
+                break
+
+            end_date = oldest_ms - 1
+            time.sleep(2.0)
+
+        print(f"Finished {name}: saved {device_saved} row(s)")
+
+    print(f"\nBackfill complete. Total new rows saved: {total_saved}")
 
 
 def build_parser():
@@ -150,38 +239,34 @@ def build_parser():
 
     subparsers = parser.add_subparsers(dest="command")
 
-    snapshot_parser = subparsers.add_parser(
-        "snapshot",
-        help="Fetch current data and save it to the local database"
-    )
-
-    snapshot_parser.add_argument(
-        "--device",
-        help="Device index or exact device name"
-    )
-
     summary_parser = subparsers.add_parser("summary", help="Show summarized weather data")
-    summary_parser.add_argument(
-        "--device",
-        help="Device index or exact device name",
-    )
+    summary_parser.add_argument("--device", help="Device index or exact device name")
 
     current_parser = subparsers.add_parser("current", help="Show current conditions")
-    current_parser.add_argument(
-        "--device",
-        help="Device index or exact device name",
-    )
+    current_parser.add_argument("--device", help="Device index or exact device name")
 
     devices_parser = subparsers.add_parser("devices", help="List device names and MAC addresses")
-    devices_parser.add_argument(
-        "--device",
-        help="Device index or exact device name",
-    )
+    devices_parser.add_argument("--device", help="Device index or exact device name")
 
     raw_parser = subparsers.add_parser("raw", help="Show raw API response")
-    raw_parser.add_argument(
-        "--device",
-        help="Device index or exact device name",
+    raw_parser.add_argument("--device", help="Device index or exact device name")
+
+    snapshot_parser = subparsers.add_parser(
+        "snapshot",
+        help="Fetch current data and save it to the local database",
+    )
+    snapshot_parser.add_argument("--device", help="Device index or exact device name")
+
+    backfill_parser = subparsers.add_parser(
+        "backfill",
+        help="Fetch historical data from Ambient and save it to the local database",
+    )
+    backfill_parser.add_argument("--device", help="Device index or exact device name")
+    backfill_parser.add_argument(
+        "--days",
+        type=int,
+        required=True,
+        help="Number of days of history to backfill",
     )
 
     return parser
@@ -212,6 +297,8 @@ def main() -> None:
         print_raw(selected_devices)
     elif command == "snapshot":
         save_snapshot(selected_devices)
+    elif command == "backfill":
+        backfill_history(client, selected_devices, args.days)
     else:
         parser.error(f"Unknown command: {command}")
 

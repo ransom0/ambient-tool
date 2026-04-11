@@ -1,0 +1,7 @@
+[Unit]
+Description=Ambient Weather snapshot collector
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ben/py-projects/ambient-tool
+ExecStart=/home/ben/py-projects/ambient-tool/.venv/bin/python -m ambient_tool.cli snapshot

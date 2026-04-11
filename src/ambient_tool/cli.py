@@ -330,17 +330,27 @@ def run_trend(
         print_trend_block(results, hours)
 
 
+def get_export_rows(
+    *,
+    hours: int,
+    fields: list[str],
+):
+    fieldnames = normalize_observation_columns(fields)
+    rows = get_recent_observations_for_columns(
+        hours=hours,
+        columns=fields,
+    )
+    return fieldnames, rows
+
 def run_export_csv(
     *,
     hours: int,
     fields: list[str],
     output_path: str,
 ) -> None:
-    fieldnames = normalize_observation_columns(fields)
-
-    rows = get_recent_observations_for_columns(
+    fieldnames, rows = get_export_rows(
         hours=hours,
-        columns=fields,
+        fields=fields,
     )
 
     if not rows:
@@ -355,18 +365,15 @@ def run_export_csv(
 
     print(f"Exported {len(rows)} row(s) to {output_path}")
 
-
 def run_export_json(
     *,
     hours: int,
     fields: list[str],
     output_path: str,
 ) -> None:
-    fieldnames = normalize_observation_columns(fields)
-
-    rows = get_recent_observations_for_columns(
+    fieldnames, rows = get_export_rows(
         hours=hours,
-        columns=fields,
+        fields=fields,
     )
 
     if not rows:

@@ -7,6 +7,7 @@ from pprint import pprint
 from zoneinfo import ZoneInfo
 
 from ambient_tool.client import build_client
+from ambient_tool.query import get_recent_observations, compute_stats
 from ambient_tool.storage import (
     init_db,
     migrate_add_unique_index,
@@ -230,6 +231,37 @@ def backfill_history(client, devices, days: int) -> None:
 
     print(f"\nBackfill complete. Total new rows saved: {total_saved}")
 
+def run_trend(field: str, hours: int) -> None:
+    rows = get_recent_observations(hours)
+
+    if not rows:
+        print("No data available for that time range.")
+        return
+
+    values = []
+
+    for row in rows:
+        if field == "temp":
+            values.append(row["tempf"])
+        elif field == "humidity":
+            values.append(row["humidity"])
+        elif field == "pressure":
+            values.append(row["baromrelin"])
+        else:
+            print(f"Unknown field: {field}")
+            return
+
+    stats = compute_stats(values)
+
+    if not stats:
+        print("No valid data.")
+        return
+
+    print(f"\nTrend: {field} (last {hours} hours)\n")
+    print(f"  Min: {stats['min']:.2f}")
+    print(f"  Max: {stats['max']:.2f}")
+    print(f"  Avg: {stats['avg']:.2f}")
+    print(f"  Samples: {len(values)}")
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -257,6 +289,23 @@ def build_parser():
     )
     snapshot_parser.add_argument("--device", help="Device index or exact device name")
 
+    trend_parser = subparsers.add_parser(
+        "trend",
+        help="Show trend statistics from local data",
+    )
+
+    trend_parser.add_argument(
+        "field",
+        choices=["temp", "humidity", "pressure"],
+        help="Field to analyze",
+    )
+
+    trend_parser.add_argument(
+        "--hours",
+        type=int,
+        default=24,
+        help="Number of hours to look back",
+    )
     backfill_parser = subparsers.add_parser(
         "backfill",
         help="Fetch historical data from Ambient and save it to the local database",
@@ -299,6 +348,8 @@ def main() -> None:
         save_snapshot(selected_devices)
     elif command == "backfill":
         backfill_history(client, selected_devices, args.days)
+    elif command == "trend":
+        run_trend(args.field, args.hours)
     else:
         parser.error(f"Unknown command: {command}")
 

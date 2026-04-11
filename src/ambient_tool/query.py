@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Final
 
 from ambient_tool.storage import get_connection
 
 
-ALLOWED_OBSERVATION_COLUMNS = {
+ALLOWED_OBSERVATION_COLUMNS: Final[set[str]] = {
     "observation_time_utc",
     "tempf",
     "humidity",
@@ -23,13 +24,7 @@ ALLOWED_OBSERVATION_COLUMNS = {
 }
 
 
-def get_recent_observations_for_columns(
-    hours: int,
-    columns: list[str],
-) -> list:
-    if hours < 1:
-        raise ValueError("hours must be at least 1")
-
+def normalize_observation_columns(columns: list[str]) -> list[str]:
     requested: list[str] = []
     seen: set[str] = set()
 
@@ -43,8 +38,16 @@ def get_recent_observations_for_columns(
     if "observation_time_utc" not in seen:
         requested.insert(0, "observation_time_utc")
 
-    cutoff = datetime.now(UTC) - timedelta(hours=hours)
-    select_clause = ", ".join(requested)
+    return requested
+
+
+def get_observations_since(
+    *,
+    since_utc: datetime,
+    columns: list[str],
+) -> list:
+    normalized_columns = normalize_observation_columns(columns)
+    select_clause = ", ".join(normalized_columns)
 
     with get_connection() as conn:
         rows: list = conn.execute(
@@ -54,10 +57,24 @@ def get_recent_observations_for_columns(
             WHERE observation_time_utc >= ?
             ORDER BY observation_time_utc ASC
             """,
-            (cutoff.isoformat(),),
+            (since_utc.isoformat(),),
         ).fetchall()
 
     return rows
+
+
+def get_recent_observations_for_columns(
+    hours: int,
+    columns: list[str],
+) -> list:
+    if hours < 1:
+        raise ValueError("hours must be at least 1")
+
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
+    return get_observations_since(
+        since_utc=cutoff,
+        columns=columns,
+    )
 
 
 def get_recent_observations(hours: int):

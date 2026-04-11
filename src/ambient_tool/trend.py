@@ -80,6 +80,41 @@ TREND_FIELDS: dict[str, TrendField] = {
         required_columns=("tempf", "dew_point"),
         value_getter=_get_spread,
     ),
+        "hourlyrain": TrendField(
+        name="hourlyrain",
+        label="Rain (Hourly)",
+        unit="in",
+        required_columns=("hourlyrainin",),
+        value_getter=_get_single("hourlyrainin"),
+    ),
+    "dailyrain": TrendField(
+        name="dailyrain",
+        label="Rain (Daily)",
+        unit="in",
+        required_columns=("dailyrainin",),
+        value_getter=_get_single("dailyrainin"),
+    ),
+    "weeklyrain": TrendField(
+        name="weeklyrain",
+        label="Rain (Weekly)",
+        unit="in",
+        required_columns=("weeklyrainin",),
+        value_getter=_get_single("weeklyrainin"),
+    ),
+    "monthlyrain": TrendField(
+        name="monthlyrain",
+        label="Rain (Monthly)",
+        unit="in",
+        required_columns=("monthlyrainin",),
+        value_getter=_get_single("monthlyrainin"),
+    ),
+    "yearlyrain": TrendField(
+        name="yearlyrain",
+        label="Rain (Yearly)",
+        unit="in",
+        required_columns=("yearlyrainin",),
+        value_getter=_get_single("yearlyrainin"),
+    ),
 }
 
 

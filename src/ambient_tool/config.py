@@ -13,15 +13,21 @@ class Settings:
 
 
 def load_settings() -> Settings:
+    """Load Ambient Weather credentials from environment or .env."""
     load_dotenv()
 
     api_key = os.getenv("AMBIENT_API_KEY", "").strip()
-    app_key = os.getenv("AMBIENT_APPLICATION_KEY", "").strip()
+    app_key = (
+        os.getenv("AMBIENT_APPLICATION_KEY", "").strip()
+        or os.getenv("AMBIENT_APP_KEY", "").strip()
+    )
 
     if not api_key:
         raise RuntimeError("Missing AMBIENT_API_KEY in .env or environment")
     if not app_key:
-        raise RuntimeError("Missing AMBIENT_APPLICATION_KEY in .env or environment")
+        raise RuntimeError(
+            "Missing AMBIENT_APPLICATION_KEY (or AMBIENT_APP_KEY) in .env or environment"
+        )
 
     return Settings(
         ambient_api_key=api_key,

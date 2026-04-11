@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from ambient_tool.client import build_client
 from ambient_tool.export_csv import write_rows_to_csv
+from ambient_tool.export_json import write_rows_to_json
 from ambient_tool.query import (
     get_recent_observations_for_columns,
     normalize_observation_columns,
@@ -354,6 +355,32 @@ def run_export_csv(
 
     print(f"Exported {len(rows)} row(s) to {output_path}")
 
+
+def run_export_json(
+    *,
+    hours: int,
+    fields: list[str],
+    output_path: str,
+) -> None:
+    fieldnames = normalize_observation_columns(fields)
+
+    rows = get_recent_observations_for_columns(
+        hours=hours,
+        columns=fields,
+    )
+
+    if not rows:
+        print("No data available for that time range.")
+        return
+
+    write_rows_to_json(
+        output_path=output_path,
+        fieldnames=fieldnames,
+        rows=rows,
+    )
+
+    print(f"Exported {len(rows)} row(s) to {output_path}")
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="ambient",
@@ -439,6 +466,32 @@ def build_parser():
         help="Path to the output CSV file",
     )
 
+    export_json_parser = export_subparsers.add_parser(
+        "json",
+        help="Export local observation data to JSON",
+    )
+    export_json_parser.add_argument(
+        "--hours",
+        type=int,
+        default=24,
+        help="Number of hours to look back",
+    )
+    export_json_parser.add_argument(
+        "--fields",
+        nargs="+",
+        required=True,
+        metavar="COLUMN",
+        help=(
+            "Observation columns to export, e.g. "
+            "--fields tempf dew_point baromrelin humidity"
+        ),
+    )
+    export_json_parser.add_argument(
+        "--out",
+        required=True,
+        help="Path to the output JSON file",
+    )
+
     backfill_parser = subparsers.add_parser(
         "backfill",
         help="Fetch historical data from Ambient and save it to the local database",
@@ -484,17 +537,23 @@ def main() -> None:
     elif command == "trend":
         run_trend(args.show, args.hours, args.output_format)
     elif command == "export":
-        if args.export_format == "csv":
-            try:
+        try:
+            if args.export_format == "csv":
                 run_export_csv(
                     hours=args.hours,
                     fields=args.fields,
                     output_path=args.out,
                 )
-            except ValueError as exc:
-                parser.error(str(exc))
-        else:
-            parser.error("Missing export format. Try: ambient export csv ...")
+            elif args.export_format == "json":
+                run_export_json(
+                    hours=args.hours,
+                    fields=args.fields,
+                    output_path=args.out,
+                )
+            else:
+                parser.error("Missing export format. Try: ambient export csv ...")
+        except ValueError as exc:
+            parser.error(str(exc))
     else:
         parser.error(f"Unknown command: {command}")
 

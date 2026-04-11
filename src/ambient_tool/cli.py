@@ -7,7 +7,7 @@ from pprint import pprint
 from zoneinfo import ZoneInfo
 
 from ambient_tool.client import build_client
-from ambient_tool.query import get_recent_observations, compute_stats
+from ambient_tool.trend import normalize_show_fields, summarize_trends
 from ambient_tool.storage import (
     init_db,
     migrate_add_unique_index,
@@ -231,37 +231,34 @@ def backfill_history(client, devices, days: int) -> None:
 
     print(f"\nBackfill complete. Total new rows saved: {total_saved}")
 
-def run_trend(field: str, hours: int) -> None:
-    rows = get_recent_observations(hours)
+def format_trend_value(value: float | None) -> str:
+    if value is None:
+        return "N/A"
+    return f"{value:.2f}"
 
-    if not rows:
+def run_trend(show_fields: list[str] | None, hours: int) -> None:
+    try:
+        normalized_fields = normalize_show_fields(show_fields)
+    except ValueError as exc:
+        print(str(exc))
+        return
+
+    results = summarize_trends(hours=hours, show_fields=normalized_fields)
+
+    if not results:
         print("No data available for that time range.")
         return
 
-    values = []
+    print(f"\nTrend: last {hours} hours\n")
 
-    for row in rows:
-        if field == "temp":
-            values.append(row["tempf"])
-        elif field == "humidity":
-            values.append(row["humidity"])
-        elif field == "pressure":
-            values.append(row["baromrelin"])
-        else:
-            print(f"Unknown field: {field}")
-            return
-
-    stats = compute_stats(values)
-
-    if not stats:
-        print("No valid data.")
-        return
-
-    print(f"\nTrend: {field} (last {hours} hours)\n")
-    print(f"  Min: {stats['min']:.2f}")
-    print(f"  Max: {stats['max']:.2f}")
-    print(f"  Avg: {stats['avg']:.2f}")
-    print(f"  Samples: {len(values)}")
+    for field, stats in results:
+        print(f"{field.label} ({field.name})")
+        print(f" Latest: {format_trend_value(stats.latest)} {field.unit}")
+        print(f" Min:    {format_trend_value(stats.min_value)} {field.unit}")
+        print(f" Max:    {format_trend_value(stats.max_value)} {field.unit}")
+        print(f" Avg:    {format_trend_value(stats.avg_value)} {field.unit}")
+        print(f" Samples: {stats.sample_count}")
+        print()
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -291,13 +288,7 @@ def build_parser():
 
     trend_parser = subparsers.add_parser(
         "trend",
-        help="Show trend statistics from local data",
-    )
-
-    trend_parser.add_argument(
-        "field",
-        choices=["temp", "humidity", "pressure"],
-        help="Field to analyze",
+        help="Show trend statistics from local data"
     )
 
     trend_parser.add_argument(
@@ -306,6 +297,15 @@ def build_parser():
         default=24,
         help="Number of hours to look back",
     )
+
+    trend_parser.add_argument(
+        "--show",
+        nargs="+",
+        default=["temp"],
+        metavar="FIELD",
+        help="Fields to analyze, e.g. --show temp dewpoint pressure spread",
+    )
+
     backfill_parser = subparsers.add_parser(
         "backfill",
         help="Fetch historical data from Ambient and save it to the local database",
@@ -349,7 +349,7 @@ def main() -> None:
     elif command == "backfill":
         backfill_history(client, selected_devices, args.days)
     elif command == "trend":
-        run_trend(args.field, args.hours)
+        run_trend(args.show, args.hours)
     else:
         parser.error(f"Unknown command: {command}")
 

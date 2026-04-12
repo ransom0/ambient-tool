@@ -348,7 +348,7 @@ def get_export_rows(
         )
         return fieldnames, rows
 
-    fieldnames = get_grouped_fieldnames(group_by)
+    fieldnames = get_grouped_fieldnames(group_by, fields=fields)
     rows = get_grouped_observations_for_columns(
         columns=fields,
         group_by=group_by,
@@ -493,8 +493,9 @@ def build_parser():
         required=True,
         metavar="COLUMN",
         help=(
-            "Observation columns to export, e.g. "
-            "--fields tempf dew_point baromrelin humidity"
+            "Observation columns to export, or grouped metric fields when using "
+            "--group-by hour. Supported grouped hourly fields: "
+            "tempf humidity dew_point baromrelin"
         ),
     )
     export_csv_parser.add_argument(
@@ -528,8 +529,9 @@ def build_parser():
         required=True,
         metavar="COLUMN",
         help=(
-            "Observation columns to export, e.g. "
-            "--fields tempf dew_point baromrelin humidity"
+            "Observation columns to export, or grouped metric fields when using "
+            "--group-by hour. Supported grouped hourly fields: "
+            "tempf humidity dew_point baromrelin"
         ),
     )
     export_json_parser.add_argument(

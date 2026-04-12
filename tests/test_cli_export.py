@@ -3,24 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from ambient_tool.cli import build_parser, get_export_rows, run_export_csv, run_export_json
-
-
-GROUPED_FIELDNAMES = [
-    "bucket_start",
-    "tempf_avg",
-    "tempf_min",
-    "tempf_max",
-    "humidity_avg",
-    "humidity_min",
-    "humidity_max",
-    "dew_point_avg",
-    "dew_point_min",
-    "dew_point_max",
-    "baromrelin_avg",
-    "baromrelin_min",
-    "baromrelin_max",
-]
 
 
 def test_get_export_rows_normalizes_fields_and_returns_rows(monkeypatch) -> None:
@@ -69,12 +54,6 @@ def test_get_export_rows_returns_grouped_fieldnames_and_rows(monkeypatch) -> Non
             "humidity_avg": 82.0,
             "humidity_min": 80.0,
             "humidity_max": 84.0,
-            "dew_point_avg": 61.5,
-            "dew_point_min": 61.0,
-            "dew_point_max": 62.0,
-            "baromrelin_avg": 30.02,
-            "baromrelin_min": 30.01,
-            "baromrelin_max": 30.03,
         }
     ]
 
@@ -89,7 +68,15 @@ def test_get_export_rows_returns_grouped_fieldnames_and_rows(monkeypatch) -> Non
 
     monkeypatch.setattr(
         "ambient_tool.cli.get_grouped_fieldnames",
-        lambda group_by: GROUPED_FIELDNAMES,
+        lambda group_by, *, fields: [
+            "bucket_start",
+            "tempf_avg",
+            "tempf_min",
+            "tempf_max",
+            "humidity_avg",
+            "humidity_min",
+            "humidity_max",
+        ],
     )
     monkeypatch.setattr(
         "ambient_tool.cli.get_grouped_observations_for_columns",
@@ -97,15 +84,23 @@ def test_get_export_rows_returns_grouped_fieldnames_and_rows(monkeypatch) -> Non
     )
 
     fieldnames, rows = get_export_rows(
-        fields=["tempf"],
+        fields=["tempf", "humidity"],
         hours=24,
         group_by="hour",
     )
 
-    assert fieldnames == GROUPED_FIELDNAMES
+    assert fieldnames == [
+        "bucket_start",
+        "tempf_avg",
+        "tempf_min",
+        "tempf_max",
+        "humidity_avg",
+        "humidity_min",
+        "humidity_max",
+    ]
     assert rows == fake_rows
     assert captured == {
-        "columns": ["tempf"],
+        "columns": ["tempf", "humidity"],
         "group_by": "hour",
         "hours": 24,
         "since": None,
@@ -155,7 +150,7 @@ def test_run_export_csv_writes_rows_and_prints_summary(
     )
 
 
-def test_run_export_csv_writes_grouped_rows_and_prints_summary(
+def test_run_export_csv_writes_grouped_rows_for_requested_fields_and_prints_summary(
     tmp_path: Path,
     monkeypatch,
     capsys,
@@ -169,12 +164,6 @@ def test_run_export_csv_writes_grouped_rows_and_prints_summary(
             "humidity_avg": 82.0,
             "humidity_min": 80.0,
             "humidity_max": 84.0,
-            "dew_point_avg": 61.5,
-            "dew_point_min": 61.0,
-            "dew_point_max": 62.0,
-            "baromrelin_avg": 30.02,
-            "baromrelin_min": 30.01,
-            "baromrelin_max": 30.03,
         },
         {
             "bucket_start": "2026-04-11T01:00:00+00:00",
@@ -184,18 +173,20 @@ def test_run_export_csv_writes_grouped_rows_and_prints_summary(
             "humidity_avg": 79.0,
             "humidity_min": 77.0,
             "humidity_max": 81.0,
-            "dew_point_avg": 62.5,
-            "dew_point_min": 62.0,
-            "dew_point_max": 63.0,
-            "baromrelin_avg": 30.0,
-            "baromrelin_min": 29.99,
-            "baromrelin_max": 30.01,
         },
     ]
 
     monkeypatch.setattr(
         "ambient_tool.cli.get_grouped_fieldnames",
-        lambda group_by: GROUPED_FIELDNAMES,
+        lambda group_by, *, fields: [
+            "bucket_start",
+            "tempf_avg",
+            "tempf_min",
+            "tempf_max",
+            "humidity_avg",
+            "humidity_min",
+            "humidity_max",
+        ],
     )
     monkeypatch.setattr(
         "ambient_tool.cli.get_grouped_observations_for_columns",
@@ -206,7 +197,7 @@ def test_run_export_csv_writes_grouped_rows_and_prints_summary(
 
     run_export_csv(
         hours=24,
-        fields=["tempf"],
+        fields=["tempf", "humidity"],
         output_path=str(output_file),
         group_by="hour",
     )
@@ -216,16 +207,13 @@ def test_run_export_csv_writes_grouped_rows_and_prints_summary(
 
     content = output_file.read_text(encoding="utf-8")
     assert content == (
-        "bucket_start,tempf_avg,tempf_min,tempf_max,"
-        "humidity_avg,humidity_min,humidity_max,"
-        "dew_point_avg,dew_point_min,dew_point_max,"
-        "baromrelin_avg,baromrelin_min,baromrelin_max\n"
-        "2026-04-11T00:00:00+00:00,70.5,70.0,71.0,82.0,80.0,84.0,61.5,61.0,62.0,30.02,30.01,30.03\n"
-        "2026-04-11T01:00:00+00:00,71.5,71.0,72.0,79.0,77.0,81.0,62.5,62.0,63.0,30.0,29.99,30.01\n"
+        "bucket_start,tempf_avg,tempf_min,tempf_max,humidity_avg,humidity_min,humidity_max\n"
+        "2026-04-11T00:00:00+00:00,70.5,70.0,71.0,82.0,80.0,84.0\n"
+        "2026-04-11T01:00:00+00:00,71.5,71.0,72.0,79.0,77.0,81.0\n"
     )
 
 
-def test_run_export_json_writes_grouped_rows_and_prints_summary(
+def test_run_export_json_writes_grouped_rows_for_requested_fields_and_prints_summary(
     tmp_path: Path,
     monkeypatch,
     capsys,
@@ -233,12 +221,6 @@ def test_run_export_json_writes_grouped_rows_and_prints_summary(
     fake_rows = [
         {
             "bucket_start": "2026-04-11T00:00:00+00:00",
-            "tempf_avg": 70.5,
-            "tempf_min": 70.0,
-            "tempf_max": 71.0,
-            "humidity_avg": 82.0,
-            "humidity_min": 80.0,
-            "humidity_max": 84.0,
             "dew_point_avg": 61.5,
             "dew_point_min": 61.0,
             "dew_point_max": 62.0,
@@ -250,7 +232,15 @@ def test_run_export_json_writes_grouped_rows_and_prints_summary(
 
     monkeypatch.setattr(
         "ambient_tool.cli.get_grouped_fieldnames",
-        lambda group_by: GROUPED_FIELDNAMES,
+        lambda group_by, *, fields: [
+            "bucket_start",
+            "dew_point_avg",
+            "dew_point_min",
+            "dew_point_max",
+            "baromrelin_avg",
+            "baromrelin_min",
+            "baromrelin_max",
+        ],
     )
     monkeypatch.setattr(
         "ambient_tool.cli.get_grouped_observations_for_columns",
@@ -261,7 +251,7 @@ def test_run_export_json_writes_grouped_rows_and_prints_summary(
 
     run_export_json(
         hours=24,
-        fields=["tempf"],
+        fields=["dew_point", "baromrelin"],
         output_path=str(output_file),
         group_by="hour",
     )
@@ -273,12 +263,6 @@ def test_run_export_json_writes_grouped_rows_and_prints_summary(
     assert data == [
         {
             "bucket_start": "2026-04-11T00:00:00+00:00",
-            "tempf_avg": 70.5,
-            "tempf_min": 70.0,
-            "tempf_max": 71.0,
-            "humidity_avg": 82.0,
-            "humidity_min": 80.0,
-            "humidity_max": 84.0,
             "dew_point_avg": 61.5,
             "dew_point_min": 61.0,
             "dew_point_max": 62.0,
@@ -398,6 +382,7 @@ def test_build_parser_parses_export_csv_group_by_arguments() -> None:
             "12",
             "--fields",
             "tempf",
+            "humidity",
             "--group-by",
             "hour",
             "--out",
@@ -409,7 +394,7 @@ def test_build_parser_parses_export_csv_group_by_arguments() -> None:
     assert args.export_format == "csv"
     assert args.hours == 12
     assert args.group_by == "hour"
-    assert args.fields == ["tempf"]
+    assert args.fields == ["tempf", "humidity"]
     assert args.out == "sample.csv"
 
 
@@ -423,7 +408,8 @@ def test_build_parser_parses_export_json_group_by_arguments() -> None:
             "--hours",
             "12",
             "--fields",
-            "tempf",
+            "dew_point",
+            "baromrelin",
             "--group-by",
             "hour",
             "--out",
@@ -435,5 +421,14 @@ def test_build_parser_parses_export_json_group_by_arguments() -> None:
     assert args.export_format == "json"
     assert args.hours == 12
     assert args.group_by == "hour"
-    assert args.fields == ["tempf"]
+    assert args.fields == ["dew_point", "baromrelin"]
     assert args.out == "sample.json"
+
+
+def test_get_export_rows_grouped_rejects_unsupported_field(monkeypatch) -> None:
+    with pytest.raises(ValueError, match="Unsupported grouped hourly field"):
+        get_export_rows(
+            fields=["tempf", "windspeedmph"],
+            hours=24,
+            group_by="hour",
+        )

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-from typing import Any, Final
 from collections import defaultdict
-from statistics import fmean
+from datetime import UTC, datetime, timedelta
 from sqlite3 import Row
+from statistics import fmean
+from typing import Any, Final
 
 from ambient_tool.storage import get_connection
 
@@ -28,21 +28,13 @@ ALLOWED_OBSERVATION_COLUMNS: Final[set[str]] = {
 
 ALLOWED_GROUP_BY: Final[set[str]] = {"hour"}
 
-HOURLY_GROUPED_COLUMNS: Final[list[str]] = [
-    "bucket_start",
-    "tempf_avg",
-    "tempf_min",
-    "tempf_max",
-    "humidity_avg",
-    "humidity_min",
-    "humidity_max",
-    "dew_point_avg",
-    "dew_point_min",
-    "dew_point_max",
-    "baromrelin_avg",
-    "baromrelin_min",
-    "baromrelin_max",
+GROUPABLE_HOURLY_FIELDS: Final[list[str]] = [
+    "tempf",
+    "humidity",
+    "dew_point",
+    "baromrelin",
 ]
+
 
 def normalize_group_by(group_by: str) -> str:
     if group_by not in ALLOWED_GROUP_BY:
@@ -50,11 +42,48 @@ def normalize_group_by(group_by: str) -> str:
     return group_by
 
 
-def get_grouped_fieldnames(group_by: str) -> list[str]:
+def normalize_grouped_hourly_fields(fields: list[str]) -> list[str]:
+    requested: list[str] = []
+    seen: set[str] = set()
+
+    for field in fields:
+        if field == "observation_time_utc":
+            continue
+        if field not in GROUPABLE_HOURLY_FIELDS:
+            raise ValueError(
+                f"Unsupported grouped hourly field: {field}. "
+                f"Supported fields: {', '.join(GROUPABLE_HOURLY_FIELDS)}"
+            )
+        if field not in seen:
+            seen.add(field)
+            requested.append(field)
+
+    if not requested:
+        raise ValueError(
+            "Grouped hourly export requires at least one supported field. "
+            f"Supported fields: {', '.join(GROUPABLE_HOURLY_FIELDS)}"
+        )
+
+    return requested
+
+
+def get_grouped_fieldnames(group_by: str, *, fields: list[str]) -> list[str]:
     normalized = normalize_group_by(group_by)
 
     if normalized == "hour":
-        return HOURLY_GROUPED_COLUMNS.copy()
+        grouped_fields = normalize_grouped_hourly_fields(fields)
+        fieldnames = ["bucket_start"]
+
+        for field in grouped_fields:
+            fieldnames.extend(
+                [
+                    f"{field}_avg",
+                    f"{field}_min",
+                    f"{field}_max",
+                ]
+            )
+
+        return fieldnames
 
     raise ValueError(f"Unsupported group_by: {group_by}")
 
@@ -71,14 +100,11 @@ def _append_if_numeric(bucket: dict[str, list[float]], key: str, value: Any) -> 
     bucket[key].append(float(value))
 
 
-def group_observations_by_hour(rows: list[Row]) -> list[dict]:
+def group_observations_by_hour(rows: list[Row], *, fields: list[str]) -> list[dict]:
+    grouped_fields = normalize_grouped_hourly_fields(fields)
+
     buckets: dict[str, dict[str, list[float]]] = defaultdict(
-        lambda: {
-            "tempf": [],
-            "humidity": [],
-            "dew_point": [],
-            "baromrelin": [],
-        }
+        lambda: {field: [] for field in grouped_fields}
     )
 
     for row in rows:
@@ -89,10 +115,8 @@ def group_observations_by_hour(rows: list[Row]) -> list[dict]:
         bucket_start = truncate_to_hour_iso(observation_time)
         bucket = buckets[bucket_start]
 
-        _append_if_numeric(bucket, "tempf", row["tempf"])
-        _append_if_numeric(bucket, "humidity", row["humidity"])
-        _append_if_numeric(bucket, "dew_point", row["dew_point"])
-        _append_if_numeric(bucket, "baromrelin", row["baromrelin"])
+        for field in grouped_fields:
+            _append_if_numeric(bucket, field, row[field])
 
     grouped_rows: list[dict] = []
 
@@ -102,31 +126,18 @@ def group_observations_by_hour(rows: list[Row]) -> list[dict]:
         if not any(bucket.values()):
             continue
 
-        grouped_rows.append(
-            {
-                "bucket_start": bucket_start,
-                "tempf_avg": fmean(bucket["tempf"]) if bucket["tempf"] else None,
-                "tempf_min": min(bucket["tempf"]) if bucket["tempf"] else None,
-                "tempf_max": max(bucket["tempf"]) if bucket["tempf"] else None,
-                "humidity_avg": fmean(bucket["humidity"]) if bucket["humidity"] else None,
-                "humidity_min": min(bucket["humidity"]) if bucket["humidity"] else None,
-                "humidity_max": max(bucket["humidity"]) if bucket["humidity"] else None,
-                "dew_point_avg": fmean(bucket["dew_point"]) if bucket["dew_point"] else None,
-                "dew_point_min": min(bucket["dew_point"]) if bucket["dew_point"] else None,
-                "dew_point_max": max(bucket["dew_point"]) if bucket["dew_point"] else None,
-                "baromrelin_avg": (
-                    fmean(bucket["baromrelin"]) if bucket["baromrelin"] else None
-                ),
-                "baromrelin_min": (
-                    min(bucket["baromrelin"]) if bucket["baromrelin"] else None
-                ),
-                "baromrelin_max": (
-                    max(bucket["baromrelin"]) if bucket["baromrelin"] else None
-                ),
-            }
-        )
+        grouped_row: dict[str, object] = {"bucket_start": bucket_start}
+
+        for field in grouped_fields:
+            values = bucket[field]
+            grouped_row[f"{field}_avg"] = fmean(values) if values else None
+            grouped_row[f"{field}_min"] = min(values) if values else None
+            grouped_row[f"{field}_max"] = max(values) if values else None
+
+        grouped_rows.append(grouped_row)
 
     return grouped_rows
+
 
 def normalize_observation_columns(columns: list[str]) -> list[str]:
     requested: list[str] = []
@@ -196,6 +207,7 @@ def get_recent_observations_for_columns(
         columns=columns,
     )
 
+
 def get_grouped_observations_for_columns(
     *,
     columns: list[str],
@@ -206,19 +218,14 @@ def get_grouped_observations_for_columns(
     normalized_group_by = normalize_group_by(group_by)
 
     if normalized_group_by == "hour":
-        required_columns = [
-            "observation_time_utc",
-            "tempf",
-            "humidity",
-            "dew_point",
-            "baromrelin",
-        ]
+        grouped_fields = normalize_grouped_hourly_fields(columns)
+        required_columns = ["observation_time_utc", *grouped_fields]
         raw_rows = get_observations_for_columns(
             columns=required_columns,
             hours=hours,
             since=since,
         )
-        return group_observations_by_hour(raw_rows)
+        return group_observations_by_hour(raw_rows, fields=grouped_fields)
 
     raise ValueError(f"Unsupported group_by: {group_by}")
 

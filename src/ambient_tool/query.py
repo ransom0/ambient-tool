@@ -36,6 +36,10 @@ GROUPABLE_HOURLY_FIELDS: Final[list[str]] = [
 ]
 
 
+def _supported_grouped_hourly_fields_text() -> str:
+    return ", ".join(GROUPABLE_HOURLY_FIELDS)
+
+
 def normalize_group_by(group_by: str) -> str:
     if group_by not in ALLOWED_GROUP_BY:
         raise ValueError(f"Unsupported group_by: {group_by}")
@@ -49,11 +53,13 @@ def normalize_grouped_hourly_fields(fields: list[str]) -> list[str]:
     for field in fields:
         if field == "observation_time_utc":
             continue
+
         if field not in GROUPABLE_HOURLY_FIELDS:
             raise ValueError(
                 f"Unsupported grouped hourly field: {field}. "
-                f"Supported fields: {', '.join(GROUPABLE_HOURLY_FIELDS)}"
+                f"Supported fields: {_supported_grouped_hourly_fields_text()}"
             )
+
         if field not in seen:
             seen.add(field)
             requested.append(field)
@@ -61,7 +67,7 @@ def normalize_grouped_hourly_fields(fields: list[str]) -> list[str]:
     if not requested:
         raise ValueError(
             "Grouped hourly export requires at least one supported field. "
-            f"Supported fields: {', '.join(GROUPABLE_HOURLY_FIELDS)}"
+            f"Supported fields: {_supported_grouped_hourly_fields_text()}"
         )
 
     return requested

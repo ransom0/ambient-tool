@@ -15,13 +15,13 @@ from ambient_tool.query import (
     get_observations_for_columns,
     normalize_observation_columns,
 )
-from ambient_tool.trend import normalize_show_fields, summarize_trends
 from ambient_tool.storage import (
     init_db,
     migrate_add_unique_index,
     save_historical_observations,
     save_observations,
 )
+from ambient_tool.trend import normalize_show_fields, summarize_trends
 
 
 def format_device_summary(device) -> str:
@@ -254,17 +254,17 @@ def print_trend_block(results, hours: int) -> None:
         stats = result.stats
         tendency = result.tendency
 
-    print(f"{field.label} ({field.name})")
-    print(f" Latest:  {format_trend_value(stats.latest)} {field.unit}")
-    print(f" Min:     {format_trend_value(stats.min_value)} {field.unit}")
-    print(f" Max:     {format_trend_value(stats.max_value)} {field.unit}")
-    print(f" Avg:     {format_trend_value(stats.avg_value)} {field.unit}")
-    print(f" Samples: {stats.sample_count}")
+        print(f"{field.label} ({field.name})")
+        print(f" Latest:  {format_trend_value(stats.latest)} {field.unit}")
+        print(f" Min:     {format_trend_value(stats.min_value)} {field.unit}")
+        print(f" Max:     {format_trend_value(stats.max_value)} {field.unit}")
+        print(f" Avg:     {format_trend_value(stats.avg_value)} {field.unit}")
+        print(f" Samples: {stats.sample_count}")
 
-    if tendency:
-        print(f" Trend:   {tendency}")
+        if tendency:
+            print(f" Trend:   {tendency}")
 
-    print()
+        print()
 
 
 def print_trend_table(results, hours: int) -> None:
@@ -276,17 +276,17 @@ def print_trend_table(results, hours: int) -> None:
         stats = result.stats
         tendency = result.tendency
 
-    rows.append(
-        [
-            f"{field.label} ({field.unit})",
-            format_trend_value(stats.latest),
-            format_trend_value(stats.min_value),
-            format_trend_value(stats.max_value),
-            format_trend_value(stats.avg_value),
-            str(stats.sample_count),
-            tendency or "-",
-        ]
-    )
+        rows.append(
+            [
+                f"{field.label} ({field.unit})",
+                format_trend_value(stats.latest),
+                format_trend_value(stats.min_value),
+                format_trend_value(stats.max_value),
+                format_trend_value(stats.avg_value),
+                str(stats.sample_count),
+                tendency or "-",
+            ]
+        )
 
     widths = [len(header) for header in headers]
 
@@ -331,6 +331,7 @@ def run_trend(
     else:
         print_trend_block(results, hours)
 
+
 def get_export_rows(
     *,
     fields: list[str],
@@ -355,6 +356,7 @@ def get_export_rows(
         since=since,
     )
     return fieldnames, rows
+
 
 def run_export_csv(
     *,
@@ -383,6 +385,7 @@ def run_export_csv(
 
     print(f"Exported {len(rows)} row(s) to {output_path}")
 
+
 def run_export_json(
     *,
     fields: list[str],
@@ -409,6 +412,7 @@ def run_export_json(
     )
 
     print(f"Exported {len(rows)} row(s) to {output_path}")
+
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -559,32 +563,31 @@ def main() -> None:
     args = parser.parse_args()
 
     command = args.command or "summary"
-    device_selector = getattr(args, "device", None)
-
-    client = build_client()
-    devices = client.get_devices()
 
     try:
-        selected_devices = select_devices(devices, device_selector)
-    except ValueError as exc:
-        parser.error(str(exc))
+        if command in {"summary", "current", "devices", "raw", "snapshot", "backfill"}:
+            device_selector = getattr(args, "device", None)
+            client = build_client()
+            devices = client.get_devices()
+            selected_devices = select_devices(devices, device_selector)
 
-    if command == "summary":
-        print_summary(selected_devices)
-    elif command == "current":
-        print_current(selected_devices)
-    elif command == "devices":
-        print_device_names(selected_devices)
-    elif command == "raw":
-        print_raw(selected_devices)
-    elif command == "snapshot":
-        save_snapshot(selected_devices)
-    elif command == "backfill":
-        backfill_history(client, selected_devices, args.days)
-    elif command == "trend":
-        run_trend(args.show, args.hours, args.output_format)
-    elif command == "export":
-        try:
+            if command == "summary":
+                print_summary(selected_devices)
+            elif command == "current":
+                print_current(selected_devices)
+            elif command == "devices":
+                print_device_names(selected_devices)
+            elif command == "raw":
+                print_raw(selected_devices)
+            elif command == "snapshot":
+                save_snapshot(selected_devices)
+            elif command == "backfill":
+                backfill_history(client, selected_devices, args.days)
+
+        elif command == "trend":
+            run_trend(args.show, args.hours, args.output_format)
+
+        elif command == "export":
             if args.export_format == "csv":
                 run_export_csv(
                     hours=args.hours,
@@ -593,7 +596,6 @@ def main() -> None:
                     output_path=args.out,
                     group_by=args.group_by,
                 )
-
             elif args.export_format == "json":
                 run_export_json(
                     hours=args.hours,
@@ -604,10 +606,12 @@ def main() -> None:
                 )
             else:
                 parser.error("Missing export format. Try: ambient export csv ...")
-        except ValueError as exc:
-            parser.error(str(exc))
-    else:
-        parser.error(f"Unknown command: {command}")
+        else:
+            parser.error(f"Unknown command: {command}")
+
+    except ValueError as exc:
+        parser.error(str(exc))
+
 
 if __name__ == "__main__":
     main()

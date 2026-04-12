@@ -7,6 +7,12 @@ from pprint import pprint
 from zoneinfo import ZoneInfo
 
 from ambient_tool.client import build_client
+from ambient_tool.derived import (
+    add_derived_fields,
+    derived_field_names,
+    is_derived_field,
+    split_requested_fields,
+)
 from ambient_tool.export_csv import write_rows_to_csv
 from ambient_tool.export_json import write_rows_to_json
 from ambient_tool.query import (
@@ -158,6 +164,59 @@ def save_snapshot(devices) -> None:
     print(f"\nSaved {saved_count} observation(s)")
     print("Database: ~/.ambient_tool/ambient_weather.db")
 
+
+SUPPORTED_GROUPED_HOURLY_FIELDS = {
+    "tempf",
+    "humidity",
+    "dew_point",
+    "baromrelin",
+}
+
+# Keep your existing raw row-export fields here.
+SUPPORTED_ROW_EXPORT_RAW_FIELDS = {
+    "observation_time_utc",
+    "tempf",
+    "humidity",
+    "dew_point",
+    "baromrelin",
+    "feels_like",
+    "windspeedmph",
+    "windgustmph",
+    "winddir",
+    "hourlyrainin",
+    "dailyrainin",
+    "weeklyrainin",
+    "monthlyrainin",
+    "yearlyrainin",
+}
+
+
+def validate_row_export_fields(fields: list[str]) -> None:
+    supported = SUPPORTED_ROW_EXPORT_RAW_FIELDS | set(derived_field_names())
+    unsupported = [field for field in fields if field not in supported]
+    if unsupported:
+        joined = ", ".join(sorted(unsupported))
+        raise ValueError(f"Unsupported export field(s): {joined}")
+
+
+def validate_grouped_hourly_fields(fields: list[str]) -> None:
+    derived = [field for field in fields if is_derived_field(field)]
+    if derived:
+        joined = ", ".join(derived)
+        supported = ", ".join(sorted(SUPPORTED_GROUPED_HOURLY_FIELDS))
+        raise ValueError(
+            "Grouped export does not support derived fields yet: "
+            f"{joined}. Supported grouped hourly fields: {supported}"
+        )
+
+    unsupported = [field for field in fields if field not in SUPPORTED_GROUPED_HOURLY_FIELDS]
+    if unsupported:
+        joined = ", ".join(sorted(unsupported))
+        supported = ", ".join(sorted(SUPPORTED_GROUPED_HOURLY_FIELDS))
+        raise ValueError(
+            f"Unsupported grouped hourly field(s): {joined}. "
+            f"Supported grouped hourly fields: {supported}"
+        )
 
 def backfill_history(client, devices, days: int) -> None:
     if days < 1:
@@ -340,13 +399,35 @@ def get_export_rows(
     group_by: str | None = None,
 ):
     if group_by is None:
-        fieldnames = normalize_observation_columns(fields)
+        validate_row_export_fields(fields)
+
+        from ambient_tool.derived import required_source_fields
+
+        raw_fields, derived_fields = split_requested_fields(fields)
+
+        # include dependencies for derived fields
+        required_columns = set(raw_fields)
+
+        for derived in derived_fields:
+            for dep in required_source_fields(derived):
+                required_columns.add(dep)
+
+        query_columns = normalize_observation_columns(list(required_columns))
         rows = get_observations_for_columns(
-            columns=fields,
+            columns=query_columns,
             hours=hours,
             since=since,
         )
-        return fieldnames, rows
+
+        enriched_rows = add_derived_fields(rows, derived_fields)
+
+        fieldnames = list(fields)
+        if "observation_time_utc" not in fieldnames:
+            fieldnames.insert(0, "observation_time_utc")
+
+        return fieldnames, enriched_rows
+
+    validate_grouped_hourly_fields(fields)
 
     fieldnames = get_grouped_fieldnames(group_by, fields=fields)
     rows = get_grouped_observations_for_columns(
@@ -493,8 +574,8 @@ def build_parser():
         required=True,
         metavar="COLUMN",
         help=(
-            "Observation columns to export, or grouped metric fields when using "
-            "--group-by hour. Supported grouped hourly fields: "
+            "Observation columns to export in row mode, including derived fields like "
+            "spread. When using --group-by hour, supported grouped hourly fields are: "
             "tempf humidity dew_point baromrelin"
         ),
     )
@@ -529,8 +610,8 @@ def build_parser():
         required=True,
         metavar="COLUMN",
         help=(
-            "Observation columns to export, or grouped metric fields when using "
-            "--group-by hour. Supported grouped hourly fields: "
+            "Observation columns to export in row mode, including derived fields like "
+            "spread. When using --group-by hour, supported grouped hourly fields are: "
             "tempf humidity dew_point baromrelin"
         ),
     )

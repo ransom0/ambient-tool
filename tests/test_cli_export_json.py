@@ -154,3 +154,49 @@ def test_build_parser_parses_export_json_since_arguments() -> None:
     assert args.since == "2026-04-10T15:00:00+00:00"
     assert args.fields == ["tempf", "dew_point"]
     assert args.out == "sample.json"
+
+def test_run_export_json_writes_derived_spread(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    fake_rows = [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 70.0,
+            "dew_point": 60.0,
+        },
+        {
+            "observation_time_utc": "2026-04-11T01:00:00+00:00",
+            "tempf": 68.0,
+            "dew_point": None,
+        },
+    ]
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_observations_for_columns",
+        lambda *, columns, hours=None, since=None: fake_rows,
+    )
+
+    output_file = tmp_path / "spread.json"
+
+    run_export_json(
+        hours=24,
+        fields=["spread"],
+        output_path=str(output_file),
+    )
+
+    captured = capsys.readouterr()
+    assert "Exported 2 row(s) to" in captured.out
+
+    data = json.loads(output_file.read_text(encoding="utf-8"))
+    assert data == [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "spread": 10.0,
+        },
+        {
+            "observation_time_utc": "2026-04-11T01:00:00+00:00",
+            "spread": None,
+        },
+    ]

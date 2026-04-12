@@ -38,7 +38,7 @@ def test_get_export_rows_normalizes_fields_and_returns_rows(monkeypatch) -> None
     assert fieldnames == ["observation_time_utc", "humidity", "tempf"]
     assert rows == fake_rows
     assert captured == {
-        "columns": ["humidity", "tempf"],
+        "columns": ["observation_time_utc", "humidity", "tempf"],
         "hours": 24,
         "since": None,
     }
@@ -429,6 +429,102 @@ def test_get_export_rows_grouped_rejects_unsupported_field(monkeypatch) -> None:
     with pytest.raises(ValueError, match="Unsupported grouped hourly field"):
         get_export_rows(
             fields=["tempf", "windspeedmph"],
+            hours=24,
+            group_by="hour",
+        )
+
+def test_get_export_rows_row_mode_supports_derived_spread(monkeypatch) -> None:
+    fake_rows = [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 70.0,
+            "dew_point": 60.0,
+        }
+    ]
+
+    captured: dict[str, object] = {}
+
+    def fake_query(*, columns, hours=None, since=None):
+        captured["columns"] = columns
+        captured["hours"] = hours
+        captured["since"] = since
+        return fake_rows
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_observations_for_columns",
+        fake_query,
+    )
+
+    fieldnames, rows = get_export_rows(
+        fields=["spread", "tempf"],
+        hours=24,
+    )
+
+    assert fieldnames == ["observation_time_utc", "spread", "tempf"]
+    assert rows == [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 70.0,
+            "dew_point": 60.0,
+            "spread": 10.0,
+        }
+    ]
+    assert captured == {
+        "columns": ["observation_time_utc", "tempf", "dew_point"],
+        "hours": 24,
+        "since": None,
+    }
+
+
+def test_run_export_csv_writes_derived_spread(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    fake_rows = [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 70.0,
+            "dew_point": 60.0,
+        },
+        {
+            "observation_time_utc": "2026-04-11T01:00:00+00:00",
+            "tempf": 71.0,
+            "dew_point": 61.5,
+        },
+    ]
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_observations_for_columns",
+        lambda *, columns, hours=None, since=None: fake_rows,
+    )
+
+    output_file = tmp_path / "spread.csv"
+
+    run_export_csv(
+        hours=24,
+        fields=["tempf", "spread"],
+        output_path=str(output_file),
+    )
+
+    captured = capsys.readouterr()
+    assert "Exported 2 row(s) to" in captured.out
+
+    content = output_file.read_text(encoding="utf-8")
+    assert content == (
+        "observation_time_utc,tempf,spread\n"
+        "2026-04-11T00:00:00+00:00,70.0,10.0\n"
+        "2026-04-11T01:00:00+00:00,71.0,9.5\n"
+    )
+
+
+def test_get_export_rows_grouped_rejects_derived_field() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Grouped export does not support derived fields yet: spread",
+    ):
+        get_export_rows(
+            fields=["spread"],
             hours=24,
             group_by="hour",
         )

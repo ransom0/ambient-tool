@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Final
+from typing import Any, Final
 from collections import defaultdict
 from statistics import fmean
 from sqlite3 import Row
@@ -33,6 +33,15 @@ HOURLY_GROUPED_COLUMNS: Final[list[str]] = [
     "tempf_avg",
     "tempf_min",
     "tempf_max",
+    "humidity_avg",
+    "humidity_min",
+    "humidity_max",
+    "dew_point_avg",
+    "dew_point_min",
+    "dew_point_max",
+    "baromrelin_avg",
+    "baromrelin_min",
+    "baromrelin_max",
 ]
 
 def normalize_group_by(group_by: str) -> str:
@@ -56,29 +65,64 @@ def truncate_to_hour_iso(observation_time_utc: str) -> str:
     return dt.isoformat()
 
 
+def _append_if_numeric(bucket: dict[str, list[float]], key: str, value: Any) -> None:
+    if value is None:
+        return
+    bucket[key].append(float(value))
+
+
 def group_observations_by_hour(rows: list[Row]) -> list[dict]:
-    buckets: dict[str, list[float]] = defaultdict(list)
+    buckets: dict[str, dict[str, list[float]]] = defaultdict(
+        lambda: {
+            "tempf": [],
+            "humidity": [],
+            "dew_point": [],
+            "baromrelin": [],
+        }
+    )
 
     for row in rows:
         observation_time = row["observation_time_utc"]
-        tempf = row["tempf"]
-
-        if observation_time is None or tempf is None:
+        if observation_time is None:
             continue
 
         bucket_start = truncate_to_hour_iso(observation_time)
-        buckets[bucket_start].append(float(tempf))
+        bucket = buckets[bucket_start]
+
+        _append_if_numeric(bucket, "tempf", row["tempf"])
+        _append_if_numeric(bucket, "humidity", row["humidity"])
+        _append_if_numeric(bucket, "dew_point", row["dew_point"])
+        _append_if_numeric(bucket, "baromrelin", row["baromrelin"])
 
     grouped_rows: list[dict] = []
 
     for bucket_start in sorted(buckets):
-        values = buckets[bucket_start]
+        bucket = buckets[bucket_start]
+
+        if not any(bucket.values()):
+            continue
+
         grouped_rows.append(
             {
                 "bucket_start": bucket_start,
-                "tempf_avg": fmean(values),
-                "tempf_min": min(values),
-                "tempf_max": max(values),
+                "tempf_avg": fmean(bucket["tempf"]) if bucket["tempf"] else None,
+                "tempf_min": min(bucket["tempf"]) if bucket["tempf"] else None,
+                "tempf_max": max(bucket["tempf"]) if bucket["tempf"] else None,
+                "humidity_avg": fmean(bucket["humidity"]) if bucket["humidity"] else None,
+                "humidity_min": min(bucket["humidity"]) if bucket["humidity"] else None,
+                "humidity_max": max(bucket["humidity"]) if bucket["humidity"] else None,
+                "dew_point_avg": fmean(bucket["dew_point"]) if bucket["dew_point"] else None,
+                "dew_point_min": min(bucket["dew_point"]) if bucket["dew_point"] else None,
+                "dew_point_max": max(bucket["dew_point"]) if bucket["dew_point"] else None,
+                "baromrelin_avg": (
+                    fmean(bucket["baromrelin"]) if bucket["baromrelin"] else None
+                ),
+                "baromrelin_min": (
+                    min(bucket["baromrelin"]) if bucket["baromrelin"] else None
+                ),
+                "baromrelin_max": (
+                    max(bucket["baromrelin"]) if bucket["baromrelin"] else None
+                ),
             }
         )
 
@@ -162,7 +206,13 @@ def get_grouped_observations_for_columns(
     normalized_group_by = normalize_group_by(group_by)
 
     if normalized_group_by == "hour":
-        required_columns = ["observation_time_utc", "tempf"]
+        required_columns = [
+            "observation_time_utc",
+            "tempf",
+            "humidity",
+            "dew_point",
+            "baromrelin",
+        ]
         raw_rows = get_observations_for_columns(
             columns=required_columns,
             hours=hours,

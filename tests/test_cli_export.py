@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from ambient_tool.cli import build_parser, get_export_rows, run_export_csv
+from ambient_tool.cli import build_parser, get_export_rows, run_export_csv, run_export_json
 
 
 def test_get_export_rows_normalizes_fields_and_returns_rows(monkeypatch) -> None:
@@ -36,6 +37,50 @@ def test_get_export_rows_normalizes_fields_and_returns_rows(monkeypatch) -> None
     assert rows == fake_rows
     assert captured == {
         "columns": ["humidity", "tempf"],
+        "hours": 24,
+        "since": None,
+    }
+
+
+def test_get_export_rows_returns_grouped_fieldnames_and_rows(monkeypatch) -> None:
+    fake_rows = [
+        {
+            "bucket_start": "2026-04-11T00:00:00+00:00",
+            "tempf_avg": 70.5,
+            "tempf_min": 70.0,
+            "tempf_max": 71.0,
+        }
+    ]
+
+    captured: dict[str, object] = {}
+
+    def fake_grouped_query(*, columns, group_by, hours=None, since=None):
+        captured["columns"] = columns
+        captured["group_by"] = group_by
+        captured["hours"] = hours
+        captured["since"] = since
+        return fake_rows
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_grouped_fieldnames",
+        lambda group_by: ["bucket_start", "tempf_avg", "tempf_min", "tempf_max"],
+    )
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_grouped_observations_for_columns",
+        fake_grouped_query,
+    )
+
+    fieldnames, rows = get_export_rows(
+        fields=["tempf"],
+        hours=24,
+        group_by="hour",
+    )
+
+    assert fieldnames == ["bucket_start", "tempf_avg", "tempf_min", "tempf_max"]
+    assert rows == fake_rows
+    assert captured == {
+        "columns": ["tempf"],
+        "group_by": "hour",
         "hours": 24,
         "since": None,
     }
@@ -82,6 +127,101 @@ def test_run_export_csv_writes_rows_and_prints_summary(
         "2026-04-11T00:00:00+00:00,70.0,60.0\n"
         "2026-04-11T01:00:00+00:00,71.0,61.0\n"
     )
+
+
+def test_run_export_csv_writes_grouped_rows_and_prints_summary(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    fake_rows = [
+        {
+            "bucket_start": "2026-04-11T00:00:00+00:00",
+            "tempf_avg": 70.5,
+            "tempf_min": 70.0,
+            "tempf_max": 71.0,
+        },
+        {
+            "bucket_start": "2026-04-11T01:00:00+00:00",
+            "tempf_avg": 71.5,
+            "tempf_min": 71.0,
+            "tempf_max": 72.0,
+        },
+    ]
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_grouped_fieldnames",
+        lambda group_by: ["bucket_start", "tempf_avg", "tempf_min", "tempf_max"],
+    )
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_grouped_observations_for_columns",
+        lambda *, columns, group_by, hours=None, since=None: fake_rows,
+    )
+
+    output_file = tmp_path / "grouped_export.csv"
+
+    run_export_csv(
+        hours=24,
+        fields=["tempf"],
+        output_path=str(output_file),
+        group_by="hour",
+    )
+
+    captured = capsys.readouterr()
+    assert "Exported 2 row(s) to" in captured.out
+
+    content = output_file.read_text(encoding="utf-8")
+    assert content == (
+        "bucket_start,tempf_avg,tempf_min,tempf_max\n"
+        "2026-04-11T00:00:00+00:00,70.5,70.0,71.0\n"
+        "2026-04-11T01:00:00+00:00,71.5,71.0,72.0\n"
+    )
+
+
+def test_run_export_json_writes_grouped_rows_and_prints_summary(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    fake_rows = [
+        {
+            "bucket_start": "2026-04-11T00:00:00+00:00",
+            "tempf_avg": 70.5,
+            "tempf_min": 70.0,
+            "tempf_max": 71.0,
+        }
+    ]
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_grouped_fieldnames",
+        lambda group_by: ["bucket_start", "tempf_avg", "tempf_min", "tempf_max"],
+    )
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_grouped_observations_for_columns",
+        lambda *, columns, group_by, hours=None, since=None: fake_rows,
+    )
+
+    output_file = tmp_path / "grouped_export.json"
+
+    run_export_json(
+        hours=24,
+        fields=["tempf"],
+        output_path=str(output_file),
+        group_by="hour",
+    )
+
+    captured = capsys.readouterr()
+    assert "Exported 1 row(s) to" in captured.out
+
+    data = json.loads(output_file.read_text(encoding="utf-8"))
+    assert data == [
+        {
+            "bucket_start": "2026-04-11T00:00:00+00:00",
+            "tempf_avg": 70.5,
+            "tempf_min": 70.0,
+            "tempf_max": 71.0,
+        }
+    ]
 
 
 def test_run_export_csv_prints_message_when_no_rows(monkeypatch, capsys) -> None:
@@ -180,3 +320,55 @@ def test_build_parser_parses_export_csv_since_arguments() -> None:
     assert args.since == "2026-04-10T15:00:00+00:00"
     assert args.fields == ["tempf", "dew_point"]
     assert args.out == "sample.csv"
+
+
+def test_build_parser_parses_export_csv_group_by_arguments() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "export",
+            "csv",
+            "--hours",
+            "12",
+            "--fields",
+            "tempf",
+            "--group-by",
+            "hour",
+            "--out",
+            "sample.csv",
+        ]
+    )
+
+    assert args.command == "export"
+    assert args.export_format == "csv"
+    assert args.hours == 12
+    assert args.group_by == "hour"
+    assert args.fields == ["tempf"]
+    assert args.out == "sample.csv"
+
+
+def test_build_parser_parses_export_json_group_by_arguments() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "export",
+            "json",
+            "--hours",
+            "12",
+            "--fields",
+            "tempf",
+            "--group-by",
+            "hour",
+            "--out",
+            "sample.json",
+        ]
+    )
+
+    assert args.command == "export"
+    assert args.export_format == "json"
+    assert args.hours == 12
+    assert args.group_by == "hour"
+    assert args.fields == ["tempf"]
+    assert args.out == "sample.json"

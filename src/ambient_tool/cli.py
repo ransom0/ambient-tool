@@ -10,6 +10,8 @@ from ambient_tool.client import build_client
 from ambient_tool.export_csv import write_rows_to_csv
 from ambient_tool.export_json import write_rows_to_json
 from ambient_tool.query import (
+    get_grouped_fieldnames,
+    get_grouped_observations_for_columns,
     get_observations_for_columns,
     normalize_observation_columns,
 )
@@ -334,15 +336,25 @@ def get_export_rows(
     fields: list[str],
     hours: int | None = None,
     since: str | None = None,
+    group_by: str | None = None,
 ):
-    fieldnames = normalize_observation_columns(fields)
-    rows = get_observations_for_columns(
+    if group_by is None:
+        fieldnames = normalize_observation_columns(fields)
+        rows = get_observations_for_columns(
+            columns=fields,
+            hours=hours,
+            since=since,
+        )
+        return fieldnames, rows
+
+    fieldnames = get_grouped_fieldnames(group_by)
+    rows = get_grouped_observations_for_columns(
         columns=fields,
+        group_by=group_by,
         hours=hours,
         since=since,
     )
     return fieldnames, rows
-
 
 def run_export_csv(
     *,
@@ -350,11 +362,13 @@ def run_export_csv(
     output_path: str,
     hours: int | None = None,
     since: str | None = None,
+    group_by: str | None = None,
 ) -> None:
     fieldnames, rows = get_export_rows(
         fields=fields,
         hours=hours,
         since=since,
+        group_by=group_by,
     )
 
     if not rows:
@@ -369,18 +383,19 @@ def run_export_csv(
 
     print(f"Exported {len(rows)} row(s) to {output_path}")
 
-
 def run_export_json(
     *,
     fields: list[str],
     output_path: str,
     hours: int | None = None,
     since: str | None = None,
+    group_by: str | None = None,
 ) -> None:
     fieldnames, rows = get_export_rows(
         fields=fields,
         hours=hours,
         since=since,
+        group_by=group_by,
     )
 
     if not rows:
@@ -479,6 +494,11 @@ def build_parser():
         ),
     )
     export_csv_parser.add_argument(
+        "--group-by",
+        choices=["hour"],
+        help="Group exported rows by time bucket",
+    )
+    export_csv_parser.add_argument(
         "--out",
         required=True,
         help="Path to the output CSV file",
@@ -507,6 +527,11 @@ def build_parser():
             "Observation columns to export, e.g. "
             "--fields tempf dew_point baromrelin humidity"
         ),
+    )
+    export_json_parser.add_argument(
+        "--group-by",
+        choices=["hour"],
+        help="Group exported rows by time bucket",
     )
     export_json_parser.add_argument(
         "--out",
@@ -566,6 +591,7 @@ def main() -> None:
                     since=args.since,
                     fields=args.fields,
                     output_path=args.out,
+                    group_by=args.group_by,
                 )
 
             elif args.export_format == "json":
@@ -574,6 +600,7 @@ def main() -> None:
                     since=args.since,
                     fields=args.fields,
                     output_path=args.out,
+                    group_by=args.group_by,
                 )
             else:
                 parser.error("Missing export format. Try: ambient export csv ...")
@@ -581,7 +608,6 @@ def main() -> None:
             parser.error(str(exc))
     else:
         parser.error(f"Unknown command: {command}")
-
 
 if __name__ == "__main__":
     main()

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Final
+from collections import defaultdict
+from statistics import fmean
+from sqlite3 import Row
 
 from ambient_tool.storage import get_connection
 
@@ -23,6 +26,63 @@ ALLOWED_OBSERVATION_COLUMNS: Final[set[str]] = {
     "yearlyrainin",
 }
 
+ALLOWED_GROUP_BY: Final[set[str]] = {"hour"}
+
+HOURLY_GROUPED_COLUMNS: Final[list[str]] = [
+    "bucket_start",
+    "tempf_avg",
+    "tempf_min",
+    "tempf_max",
+]
+
+def normalize_group_by(group_by: str) -> str:
+    if group_by not in ALLOWED_GROUP_BY:
+        raise ValueError(f"Unsupported group_by: {group_by}")
+    return group_by
+
+
+def get_grouped_fieldnames(group_by: str) -> list[str]:
+    normalized = normalize_group_by(group_by)
+
+    if normalized == "hour":
+        return HOURLY_GROUPED_COLUMNS.copy()
+
+    raise ValueError(f"Unsupported group_by: {group_by}")
+
+
+def truncate_to_hour_iso(observation_time_utc: str) -> str:
+    dt = datetime.fromisoformat(observation_time_utc)
+    dt = dt.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
+    return dt.isoformat()
+
+
+def group_observations_by_hour(rows: list[Row]) -> list[dict]:
+    buckets: dict[str, list[float]] = defaultdict(list)
+
+    for row in rows:
+        observation_time = row["observation_time_utc"]
+        tempf = row["tempf"]
+
+        if observation_time is None or tempf is None:
+            continue
+
+        bucket_start = truncate_to_hour_iso(observation_time)
+        buckets[bucket_start].append(float(tempf))
+
+    grouped_rows: list[dict] = []
+
+    for bucket_start in sorted(buckets):
+        values = buckets[bucket_start]
+        grouped_rows.append(
+            {
+                "bucket_start": bucket_start,
+                "tempf_avg": fmean(values),
+                "tempf_min": min(values),
+                "tempf_max": max(values),
+            }
+        )
+
+    return grouped_rows
 
 def normalize_observation_columns(columns: list[str]) -> list[str]:
     requested: list[str] = []
@@ -91,6 +151,26 @@ def get_recent_observations_for_columns(
         since_utc=cutoff,
         columns=columns,
     )
+
+def get_grouped_observations_for_columns(
+    *,
+    columns: list[str],
+    group_by: str,
+    hours: int | None = None,
+    since: str | None = None,
+) -> list[dict]:
+    normalized_group_by = normalize_group_by(group_by)
+
+    if normalized_group_by == "hour":
+        required_columns = ["observation_time_utc", "tempf"]
+        raw_rows = get_observations_for_columns(
+            columns=required_columns,
+            hours=hours,
+            since=since,
+        )
+        return group_observations_by_hour(raw_rows)
+
+    raise ValueError(f"Unsupported group_by: {group_by}")
 
 
 def get_observations_for_columns(

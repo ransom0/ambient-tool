@@ -3,10 +3,16 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-DERIVED_FIELDS: tuple[str, ...] = ("spread",)
+DERIVED_FIELDS: tuple[str, ...] = (
+    "spread",
+    "gust_delta",
+    "feels_like_delta",
+)
 
 _REQUIRED_SOURCE_FIELDS: dict[str, tuple[str, ...]] = {
     "spread": ("tempf", "dew_point"),
+    "gust_delta": ("windspeedmph", "windgustmph"),
+    "feels_like_delta": ("tempf", "feels_like"),
 }
 
 
@@ -32,6 +38,20 @@ def compute_derived_value(name: str, row: Mapping[str, Any]) -> float | None:
         if tempf is None or dew_point is None:
             return None
         return float(tempf) - float(dew_point)
+
+    if name == "gust_delta":
+        windspeed = row.get("windspeedmph")
+        windgust = row.get("windgustmph")
+        if windspeed is None or windgust is None:
+            return None
+        return float(windgust) - float(windspeed)
+
+    if name == "feels_like_delta":
+        tempf = row.get("tempf")
+        feels_like = row.get("feels_like")
+        if tempf is None or feels_like is None:
+            return None
+        return float(tempf) - float(feels_like)
 
     raise ValueError(f"Unsupported derived field: {name}")
 

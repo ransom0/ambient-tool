@@ -528,3 +528,131 @@ def test_get_export_rows_grouped_rejects_derived_field() -> None:
             hours=24,
             group_by="hour",
         )
+
+def test_get_export_rows_row_mode_supports_gust_delta(monkeypatch) -> None:
+    fake_rows = [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "windspeedmph": 8.0,
+            "windgustmph": 15.0,
+        }
+    ]
+
+    captured: dict[str, object] = {}
+
+    def fake_query(*, columns, hours=None, since=None):
+        captured["columns"] = columns
+        captured["hours"] = hours
+        captured["since"] = since
+        return fake_rows
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_observations_for_columns",
+        fake_query,
+    )
+
+    fieldnames, rows = get_export_rows(
+        fields=["gust_delta"],
+        hours=24,
+    )
+
+    assert fieldnames == ["observation_time_utc", "gust_delta"]
+    assert rows == [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "windspeedmph": 8.0,
+            "windgustmph": 15.0,
+            "gust_delta": 7.0,
+        }
+    ]
+    assert captured == {
+        "columns": ["observation_time_utc", "windspeedmph", "windgustmph"],
+        "hours": 24,
+        "since": None,
+    }
+
+
+def test_get_export_rows_row_mode_supports_feels_like_delta(monkeypatch) -> None:
+    fake_rows = [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 90.0,
+            "feels_like": 95.0,
+        }
+    ]
+
+    captured: dict[str, object] = {}
+
+    def fake_query(*, columns, hours=None, since=None):
+        captured["columns"] = columns
+        captured["hours"] = hours
+        captured["since"] = since
+        return fake_rows
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_observations_for_columns",
+        fake_query,
+    )
+
+    fieldnames, rows = get_export_rows(
+        fields=["feels_like_delta", "tempf"],
+        hours=24,
+    )
+
+    assert fieldnames == ["observation_time_utc", "feels_like_delta", "tempf"]
+    assert rows == [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 90.0,
+            "feels_like": 95.0,
+            "feels_like_delta": -5.0,
+        }
+    ]
+    assert captured == {
+        "columns": ["observation_time_utc", "tempf", "feels_like"],
+        "hours": 24,
+        "since": None,
+    }
+
+
+def test_get_export_rows_row_mode_supports_multiple_derived_fields(monkeypatch) -> None:
+    fake_rows = [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 80.0,
+            "dew_point": 62.0,
+            "windspeedmph": 7.0,
+            "windgustmph": 12.0,
+            "feels_like": 83.0,
+        }
+    ]
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_observations_for_columns",
+        lambda *, columns, hours=None, since=None: fake_rows,
+    )
+
+    fieldnames, rows = get_export_rows(
+        fields=["spread", "gust_delta", "feels_like_delta"],
+        hours=24,
+    )
+
+    assert fieldnames == [
+        "observation_time_utc",
+        "spread",
+        "gust_delta",
+        "feels_like_delta",
+    ]
+    assert rows == [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 80.0,
+            "dew_point": 62.0,
+            "windspeedmph": 7.0,
+            "windgustmph": 12.0,
+            "feels_like": 83.0,
+            "spread": 18.0,
+            "gust_delta": 5.0,
+            "feels_like_delta": -3.0,
+        }
+    ]

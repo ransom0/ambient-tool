@@ -11,6 +11,7 @@ from ambient_tool.derived import (
     add_derived_fields,
     derived_field_names,
     is_derived_field,
+    required_source_fields,
     split_requested_fields,
 )
 from ambient_tool.export_csv import write_rows_to_csv
@@ -405,14 +406,14 @@ def get_export_rows(
 
         raw_fields, derived_fields = split_requested_fields(fields)
 
-        # include dependencies for derived fields
-        required_columns = set(raw_fields)
+        required_columns = list(raw_fields)
 
         for derived in derived_fields:
             for dep in required_source_fields(derived):
-                required_columns.add(dep)
+                if dep not in required_columns:
+                    required_columns.append(dep)
 
-        query_columns = normalize_observation_columns(list(required_columns))
+        query_columns = normalize_observation_columns(required_columns)
         rows = get_observations_for_columns(
             columns=query_columns,
             hours=hours,

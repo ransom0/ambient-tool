@@ -53,6 +53,24 @@ def _get_spread(row: dict) -> float | None:
 
     return float(temp) - float(dew_point)
 
+def _get_gust_delta(row: dict) -> float | None:
+    windspeed = row["windspeedmph"]
+    windgust = row["windgustmph"]
+
+    if windspeed is None or windgust is None:
+        return None
+
+    return float(windgust) - float(windspeed)
+
+
+def _get_feels_like_delta(row: dict) -> float | None:
+    temp = row["tempf"]
+    feels_like = row["feels_like"]
+
+    if temp is None or feels_like is None:
+        return None
+
+    return float(temp) - float(feels_like)
 
 TREND_FIELDS: dict[str, TrendField] = {
     "temp": TrendField(
@@ -89,6 +107,20 @@ TREND_FIELDS: dict[str, TrendField] = {
         unit="°F",
         required_columns=("tempf", "dew_point"),
         value_getter=_get_spread,
+    ),
+    "gust_delta": TrendField(
+        name="gust_delta",
+        label="Gust Delta",
+        unit="mph",
+        required_columns=("windspeedmph", "windgustmph"),
+        value_getter=_get_gust_delta,
+    ),
+    "feels_like_delta": TrendField(
+        name="feels_like_delta",
+        label="Feels-Like Delta",
+        unit="°F",
+        required_columns=("tempf", "feels_like"),
+        value_getter=_get_feels_like_delta,
     ),
         "hourlyrain": TrendField(
         name="hourlyrain",

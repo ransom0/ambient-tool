@@ -200,3 +200,88 @@ def test_run_export_json_writes_derived_spread(
             "spread": None,
         },
     ]
+
+def test_run_export_json_writes_gust_delta(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    fake_rows = [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "windspeedmph": 10.0,
+            "windgustmph": 14.5,
+        },
+        {
+            "observation_time_utc": "2026-04-11T01:00:00+00:00",
+            "windspeedmph": 8.0,
+            "windgustmph": None,
+        },
+    ]
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_observations_for_columns",
+        lambda *, columns, hours=None, since=None: fake_rows,
+    )
+
+    output_file = tmp_path / "gust_delta.json"
+
+    run_export_json(
+        hours=24,
+        fields=["gust_delta"],
+        output_path=str(output_file),
+    )
+
+    captured = capsys.readouterr()
+    assert "Exported 2 row(s) to" in captured.out
+
+    data = json.loads(output_file.read_text(encoding="utf-8"))
+    assert data == [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "gust_delta": 4.5,
+        },
+        {
+            "observation_time_utc": "2026-04-11T01:00:00+00:00",
+            "gust_delta": None,
+        },
+    ]
+
+
+def test_run_export_json_writes_feels_like_delta(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    fake_rows = [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 88.0,
+            "feels_like": 92.0,
+        }
+    ]
+
+    monkeypatch.setattr(
+        "ambient_tool.cli.get_observations_for_columns",
+        lambda *, columns, hours=None, since=None: fake_rows,
+    )
+
+    output_file = tmp_path / "feels_like_delta.json"
+
+    run_export_json(
+        hours=24,
+        fields=["tempf", "feels_like_delta"],
+        output_path=str(output_file),
+    )
+
+    captured = capsys.readouterr()
+    assert "Exported 1 row(s) to" in captured.out
+
+    data = json.loads(output_file.read_text(encoding="utf-8"))
+    assert data == [
+        {
+            "observation_time_utc": "2026-04-11T00:00:00+00:00",
+            "tempf": 88.0,
+            "feels_like_delta": -4.0,
+        }
+    ]

@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from pprint import pprint
 from zoneinfo import ZoneInfo
 
+from ambient_tool.chart import build_chart
 from ambient_tool.client import build_client
 from ambient_tool.derived import (
     add_derived_fields,
@@ -543,6 +545,18 @@ def run_export_csv(
     print(f"Exported {len(rows)} row(s) to {output_path}")
 
 
+def run_chart(args: argparse.Namespace) -> None:
+    try:
+        out = build_chart(
+            hours=args.hours,
+            show=args.show,
+            out=args.out,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    print(f"Chart written to {out}")
+
 def run_export_json(
     *,
     fields: list[str],
@@ -598,6 +612,29 @@ def build_parser():
         help="Fetch current data and save it to the local database",
     )
     snapshot_parser.add_argument("--device", help="Device index or exact device name")
+
+    chart_parser = subparsers.add_parser(
+        "chart",
+        help="Create PNG chart from local weather data",
+    )
+
+    chart_parser.add_argument(
+        "--hours",
+        type=int,
+        default=24,
+    )
+
+    chart_parser.add_argument(
+        "--show",
+        nargs="+",
+        required=True,
+    )
+
+    chart_parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("ambient_chart.png"),
+    )
 
     trend_parser = subparsers.add_parser(
         "trend",
@@ -762,6 +799,9 @@ def main() -> None:
         elif command == "trend":
             output_format = "table" if args.table else args.output_format
             run_trend(args.show, args.hours, output_format, args.last)
+
+        elif command == "chart":
+            run_chart(args)
 
         elif command == "inspect":
             run_inspect()

@@ -12,6 +12,7 @@ dependencies = [
   "requests",
   "python-dotenv",
   "rich",
+  "matplotlib",
 ]
 
 [project.scripts]

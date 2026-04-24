@@ -544,16 +544,13 @@ def run_export_csv(
 
     print(f"Exported {len(rows)} row(s) to {output_path}")
 
-
 def run_chart(args: argparse.Namespace) -> None:
-    try:
-        out = build_chart(
-            hours=args.hours,
-            show=args.show,
-            out=args.out,
-        )
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
+    out = build_chart(
+        hours=args.hours,
+        show=args.show,
+        out=args.out,
+        last=args.last,
+    )
 
     print(f"Chart written to {out}")
 
@@ -634,6 +631,13 @@ def build_parser():
         "--out",
         type=Path,
         default=Path("ambient_chart.png"),
+    )
+
+    chart_parser.add_argument(
+        "--last",
+        type=int,
+        default=None,
+        help="Use last N observations after filtering",
     )
 
     trend_parser = subparsers.add_parser(

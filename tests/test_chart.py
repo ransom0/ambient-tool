@@ -8,7 +8,7 @@ from ambient_tool.chart import build_chart
 def test_build_chart_writes_png(tmp_path, monkeypatch):
     def fake_rows(*, hours, columns):
         assert hours == 24
-        assert columns == ["tempf", "dew_point"]
+        assert columns == ["observation_time_utc", "tempf", "dew_point"]
         return [
             {
                 "observation_time_utc": "2026-04-24T00:00:00+00:00",
@@ -33,7 +33,7 @@ def test_build_chart_writes_png(tmp_path, monkeypatch):
 
 
 def test_build_chart_rejects_unknown_field(tmp_path):
-    with pytest.raises(ValueError, match="Unknown chart field"):
+    with pytest.raises(ValueError, match="Unknown trend field"):
         build_chart(hours=24, show=["rain"], out=tmp_path / "chart.png")
 
 

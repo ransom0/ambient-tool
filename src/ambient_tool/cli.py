@@ -173,7 +173,6 @@ SUPPORTED_GROUPED_HOURLY_FIELDS = {
     "baromrelin",
 }
 
-# Keep your existing raw row-export fields here.
 SUPPORTED_ROW_EXPORT_RAW_FIELDS = {
     "observation_time_utc",
     "tempf",
@@ -210,7 +209,9 @@ def validate_grouped_hourly_fields(fields: list[str]) -> None:
             f"{joined}. Supported grouped hourly fields: {supported}"
         )
 
-    unsupported = [field for field in fields if field not in SUPPORTED_GROUPED_HOURLY_FIELDS]
+    unsupported = [
+        field for field in fields if field not in SUPPORTED_GROUPED_HOURLY_FIELDS
+    ]
     if unsupported:
         joined = ", ".join(sorted(unsupported))
         supported = ", ".join(sorted(SUPPORTED_GROUPED_HOURLY_FIELDS))
@@ -219,15 +220,16 @@ def validate_grouped_hourly_fields(fields: list[str]) -> None:
             f"Supported grouped hourly fields: {supported}"
         )
 
-def backfill_history(client, devices, days: int) -> None:
-    if days < 1:
+
+def backfill_history(client, devices, days: int | None = None) -> None:
+    if days is not None and days < 1:
         raise ValueError("--days must be at least 1")
 
     init_db()
     migrate_add_unique_index()
 
     fetched_at_utc = datetime.now(UTC).isoformat()
-    cutoff = datetime.now(UTC) - timedelta(days=days)
+    cutoff = None if days is None else datetime.now(UTC) - timedelta(days=days)
 
     total_saved = 0
 
@@ -239,7 +241,12 @@ def backfill_history(client, devices, days: int) -> None:
             print(f"Skipping {name}: missing macAddress")
             continue
 
-        print(f"\nBackfilling {name} ({mac}) for the last {days} day(s)...")
+        if days is None:
+            print(
+                f"\nBackfilling {name} ({mac}) until existing data overlap is reached..."
+            )
+        else:
+            print(f"\nBackfilling {name} ({mac}) for the last {days} day(s)...")
 
         end_date = None
         device_saved = 0
@@ -247,7 +254,11 @@ def backfill_history(client, devices, days: int) -> None:
 
         while True:
             page_count += 1
-            rows = client.get_device_history(mac, end_date=end_date, limit=288)
+            rows = client.get_device_history(
+                mac,
+                end_date=end_date,
+                limit=288,
+            )
 
             if not rows:
                 break
@@ -265,7 +276,7 @@ def backfill_history(client, devices, days: int) -> None:
                 if oldest_dt is None or row_dt < oldest_dt:
                     oldest_dt = row_dt
 
-                if row_dt >= cutoff:
+                if cutoff is None or row_dt >= cutoff:
                     kept_rows.append(row)
 
             saved_now = save_historical_observations(
@@ -285,7 +296,11 @@ def backfill_history(client, devices, days: int) -> None:
             if oldest_dt is None:
                 break
 
-            if oldest_dt < cutoff:
+            if cutoff is not None and oldest_dt < cutoff:
+                break
+
+            if cutoff is None and saved_now == 0:
+                print("  Reached existing data overlap; stopping.")
                 break
 
             oldest_ms = rows[-1].get("dateutc")
@@ -402,12 +417,9 @@ def get_export_rows(
     if group_by is None:
         validate_row_export_fields(fields)
 
-        from ambient_tool.derived import required_source_fields
-
         raw_fields, derived_fields = split_requested_fields(fields)
 
         required_columns = list(raw_fields)
-
         for derived in derived_fields:
             for dep in required_source_fields(derived):
                 if dep not in required_columns:
@@ -576,8 +588,8 @@ def build_parser():
         metavar="COLUMN",
         help=(
             "Observation columns to export in row mode, including derived fields like "
-            "spread. When using --group-by hour, supported grouped hourly fields are: "
-            "tempf humidity dew_point baromrelin"
+            "spread, gust_delta, and feels_like_delta. When using --group-by hour, "
+            "supported grouped hourly fields are: tempf humidity dew_point baromrelin"
         ),
     )
     export_csv_parser.add_argument(
@@ -612,8 +624,8 @@ def build_parser():
         metavar="COLUMN",
         help=(
             "Observation columns to export in row mode, including derived fields like "
-            "spread. When using --group-by hour, supported grouped hourly fields are: "
-            "tempf humidity dew_point baromrelin"
+            "spread, gust_delta, and feels_like_delta. When using --group-by hour, "
+            "supported grouped hourly fields are: tempf humidity dew_point baromrelin"
         ),
     )
     export_json_parser.add_argument(
@@ -635,8 +647,10 @@ def build_parser():
     backfill_parser.add_argument(
         "--days",
         type=int,
-        required=True,
-        help="Number of days of history to backfill",
+        help=(
+            "Number of days of history to backfill. If omitted, backfill until "
+            "existing data overlap is reached."
+        ),
     )
 
     return parser

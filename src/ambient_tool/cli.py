@@ -29,7 +29,7 @@ from ambient_tool.storage import (
     save_historical_observations,
     save_observations,
 )
-from ambient_tool.trend import normalize_show_fields, summarize_trends
+from ambient_tool.trend import get_recent_trend_rows, normalize_show_fields, summarize_trends
 
 
 def format_device_summary(device) -> str:
@@ -154,6 +154,46 @@ def print_device_names(devices) -> None:
 
 def print_raw(devices) -> None:
     pprint(devices)
+
+def print_recent_trend_rows(
+    *,
+    rows,
+    show_fields: list[str],
+) -> None:
+    if not rows:
+        print("\nNo recent rows available for that time range.")
+        return
+
+    headers = ["time", *show_fields]
+
+    table_rows: list[list[str]] = []
+
+    for row in rows:
+        table_row = [row.observation_time_utc]
+
+        for field_name in show_fields:
+            value = row.values[field_name]
+            table_row.append("N/A" if value is None else f"{value:.2f}")
+
+        table_rows.append(table_row)
+
+    widths = [
+        max(len(str(value)) for value in [header, *(row[index] for row in table_rows)])
+        for index, header in enumerate(headers)
+    ]
+
+    def format_row(values: list[str]) -> str:
+        return " | ".join(
+            str(value).ljust(width)
+            for value, width in zip(values, widths, strict=True)
+        )
+
+    print("\nRecent trend rows\n")
+    print(format_row(headers))
+    print("-+-".join("-" * width for width in widths))
+
+    for row in table_rows:
+        print(format_row(row))
 
 
 def save_snapshot(devices) -> None:
@@ -399,6 +439,7 @@ def run_trend(
     show_fields: list[str] | None,
     hours: int,
     output_format: str,
+    last: int | None = None,
 ) -> None:
     try:
         normalized_fields = normalize_show_fields(show_fields)
@@ -417,6 +458,17 @@ def run_trend(
     else:
         print_trend_block(results, hours)
 
+    if last is not None:
+        if last <= 0:
+            print("\n--last must be greater than 0.")
+            return
+
+        recent_rows = get_recent_trend_rows(
+            hours=hours,
+            show_fields=normalized_fields,
+            limit=last,
+        )
+        print_recent_trend_rows(rows=recent_rows, show_fields=normalized_fields)
 
 def get_export_rows(
     *,
@@ -565,6 +617,16 @@ def build_parser():
         help="Output format for trend summaries",
     )
     trend_parser.add_argument(
+        "--table",
+        action="store_true",
+        help="Shortcut for --format table",
+    )
+    trend_parser.add_argument(
+        "--last",
+        type=int,
+        help="Show the last N timestamped rows for the requested fields",
+    )
+    trend_parser.add_argument(
         "--show",
         nargs="+",
         default=["temp"],
@@ -698,7 +760,8 @@ def main() -> None:
                 backfill_history(client, selected_devices, args.days)
 
         elif command == "trend":
-            run_trend(args.show, args.hours, args.output_format)
+            output_format = "table" if args.table else args.output_format
+            run_trend(args.show, args.hours, output_format, args.last)
 
         elif command == "inspect":
             run_inspect()

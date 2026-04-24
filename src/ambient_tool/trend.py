@@ -31,6 +31,11 @@ class TrendSummary:
     tendency: str | None
 
 @dataclass(frozen=True)
+class TrendRecentRow:
+    observation_time_utc: str
+    values: dict[str, float | None]
+
+@dataclass(frozen=True)
 class TrendAnalysis:
     stats: TrendStatBlock
     tendency: str | None
@@ -239,6 +244,44 @@ def summarize_trends(
                 field=field,
                 stats=stats,
                 tendency=tendency,
+            )
+        )
+
+    return results
+
+def get_recent_trend_rows(
+    *,
+    hours: int,
+    show_fields: list[str] | None,
+    limit: int,
+) -> list[TrendRecentRow]:
+    requested_fields = normalize_show_fields(show_fields)
+
+    required_columns: list[str] = ["observation_time_utc"]
+
+    for field_name in requested_fields:
+        field = TREND_FIELDS[field_name]
+        for column in field.required_columns:
+            if column not in required_columns:
+                required_columns.append(column)
+
+    rows = get_recent_observations_for_columns(hours=hours, columns=required_columns)
+
+    recent_rows = rows[-limit:] if limit > 0 else []
+
+    results: list[TrendRecentRow] = []
+
+    for row in recent_rows:
+        values: dict[str, float | None] = {}
+
+        for field_name in requested_fields:
+            field = TREND_FIELDS[field_name]
+            values[field_name] = field.value_getter(row)
+
+        results.append(
+            TrendRecentRow(
+                observation_time_utc=row["observation_time_utc"],
+                values=values,
             )
         )
 

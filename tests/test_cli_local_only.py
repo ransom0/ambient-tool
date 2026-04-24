@@ -119,10 +119,11 @@ def test_main_trend_does_not_build_client(monkeypatch) -> None:
     def fail_build_client():
         raise AssertionError("build_client should not be called for trend commands")
 
-    def fake_run_trend(show_fields, hours, output_format):
+    def fake_run_trend(show_fields, hours, output_format, last=None):
         captured["show_fields"] = show_fields
         captured["hours"] = hours
         captured["output_format"] = output_format
+        captured["last"] = last
 
     monkeypatch.setattr("ambient_tool.cli.build_client", fail_build_client)
     monkeypatch.setattr("ambient_tool.cli.run_trend", fake_run_trend)
@@ -133,8 +134,49 @@ def test_main_trend_does_not_build_client(monkeypatch) -> None:
         "show_fields": ["temp", "pressure"],
         "hours": 12,
         "output_format": "table",
+        "last": None,
     }
 
+def test_main_trend_table_shortcut_and_last(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "ambient",
+            "trend",
+            "--hours",
+            "6",
+            "--table",
+            "--last",
+            "5",
+            "--show",
+            "temp",
+            "dewpoint",
+        ],
+    )
+
+    def fail_build_client():
+        raise AssertionError("build_client should not be called for trend commands")
+
+    def fake_run_trend(show_fields, hours, output_format, last=None):
+        captured["show_fields"] = show_fields
+        captured["hours"] = hours
+        captured["output_format"] = output_format
+        captured["last"] = last
+
+    monkeypatch.setattr("ambient_tool.cli.build_client", fail_build_client)
+    monkeypatch.setattr("ambient_tool.cli.run_trend", fake_run_trend)
+
+    main()
+
+    assert captured == {
+        "show_fields": ["temp", "dewpoint"],
+        "hours": 6,
+        "output_format": "table",
+        "last": 5,
+    }
 
 def test_main_summary_still_builds_client(monkeypatch) -> None:
     events: list[str] = []

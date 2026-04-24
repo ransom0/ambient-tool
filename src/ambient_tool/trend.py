@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from ambient_tool.derived import compute_derived_value
 from ambient_tool.query import get_recent_observations_for_columns
 
 
@@ -43,34 +44,13 @@ def _get_single(column: str) -> Callable[[dict], float | None]:
 
     return getter
 
+def _get_derived(name: str) -> Callable[[dict], float | None]:
+    def getter(row: dict) -> float | None:
+        return compute_derived_value(name, row)
 
-def _get_spread(row: dict) -> float | None:
-    temp = row["tempf"]
-    dew_point = row["dew_point"]
-
-    if temp is None or dew_point is None:
-        return None
-
-    return float(temp) - float(dew_point)
-
-def _get_gust_delta(row: dict) -> float | None:
-    windspeed = row["windspeedmph"]
-    windgust = row["windgustmph"]
-
-    if windspeed is None or windgust is None:
-        return None
-
-    return float(windgust) - float(windspeed)
+    return getter
 
 
-def _get_feels_like_delta(row: dict) -> float | None:
-    temp = row["tempf"]
-    feels_like = row["feels_like"]
-
-    if temp is None or feels_like is None:
-        return None
-
-    return float(temp) - float(feels_like)
 
 TREND_FIELDS: dict[str, TrendField] = {
     "temp": TrendField(
@@ -106,23 +86,23 @@ TREND_FIELDS: dict[str, TrendField] = {
         label="Spread",
         unit="°F",
         required_columns=("tempf", "dew_point"),
-        value_getter=_get_spread,
+        value_getter=_get_derived("spread"),
     ),
     "gust_delta": TrendField(
         name="gust_delta",
         label="Gust Delta",
         unit="mph",
         required_columns=("windspeedmph", "windgustmph"),
-        value_getter=_get_gust_delta,
+        value_getter=_get_derived("gust_delta"),
     ),
     "feels_like_delta": TrendField(
         name="feels_like_delta",
         label="Feels-Like Delta",
         unit="°F",
         required_columns=("tempf", "feels_like"),
-        value_getter=_get_feels_like_delta,
+        value_getter=_get_derived("feels_like_delta"),
     ),
-        "hourlyrain": TrendField(
+    "hourlyrain": TrendField(
         name="hourlyrain",
         label="Rain (Hourly)",
         unit="in",
@@ -229,38 +209,6 @@ def compute_tendency(
     if delta < -threshold:
         return "falling ↓"
     return "steady →"
-
-
-def compute_tendency(
-    values: list[float | None],
-    field_name: str,
-) -> str | None:
-    clean = [v for v in values if v is not None]
-
-    if len(clean) < 2:
-        return None
-
-    delta = clean[-1] - clean[0]
-
-    thresholds = {
-        "temp": 1.0,
-        "dewpoint": 1.0,
-        "pressure": 0.02,
-        "humidity": 3.0,
-    }
-
-    threshold = thresholds.get(field_name)
-
-    if threshold is None:
-        return None  # skip rain fields for now
-
-    if delta > threshold:
-        return "rising ↑"
-    elif delta < -threshold:
-        return "falling ↓"
-    else:
-        return "steady →"
-
 
 def summarize_trends(
     hours: int,

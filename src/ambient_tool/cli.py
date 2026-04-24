@@ -19,6 +19,7 @@ from ambient_tool.export_json import write_rows_to_json
 from ambient_tool.query import (
     get_grouped_fieldnames,
     get_grouped_observations_for_columns,
+    get_observation_database_summary,
     get_observations_for_columns,
     normalize_observation_columns,
 )
@@ -383,6 +384,16 @@ def print_trend_table(results, hours: int) -> None:
 
     print()
 
+def run_inspect() -> None:
+    summary = get_observation_database_summary()
+
+    print("\nAmbient local data inspection\n")
+    print("Database: ~/.ambient_tool/ambient_weather.db")
+    print(f"Rows:     {summary['row_count']}")
+    print(f"Devices:  {summary['device_count']}")
+    print(f"Oldest:   {summary['oldest_observation_time_utc'] or 'N/A'}")
+    print(f"Newest:   {summary['newest_observation_time_utc'] or 'N/A'}")
+
 
 def run_trend(
     show_fields: list[str] | None,
@@ -607,6 +618,10 @@ def build_parser():
         "json",
         help="Export local observation data to JSON",
     )
+    subparsers.add_parser(
+        "inspect",
+        help="Inspect local Ambient Weather database coverage",
+    )
     export_json_time_group = export_json_parser.add_mutually_exclusive_group(required=True)
     export_json_time_group.add_argument(
         "--hours",
@@ -684,6 +699,9 @@ def main() -> None:
 
         elif command == "trend":
             run_trend(args.show, args.hours, args.output_format)
+
+        elif command == "inspect":
+            run_inspect()
 
         elif command == "export":
             if args.export_format == "csv":

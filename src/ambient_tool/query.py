@@ -264,3 +264,23 @@ def get_recent_observations(hours: int):
         hours=hours,
         columns=["observation_time_utc", "tempf", "humidity", "baromrelin"],
     )
+
+def get_observation_database_summary() -> dict[str, object]:
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS row_count,
+                COUNT(DISTINCT mac_address) AS device_count,
+                MIN(observation_time_utc) AS oldest_observation_time_utc,
+                MAX(observation_time_utc) AS newest_observation_time_utc
+            FROM observations
+            """
+        ).fetchone()
+
+    return {
+        "row_count": row["row_count"],
+        "device_count": row["device_count"],
+        "oldest_observation_time_utc": row["oldest_observation_time_utc"],
+        "newest_observation_time_utc": row["newest_observation_time_utc"],
+    }

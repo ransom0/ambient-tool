@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from ambient_tool.chart import build_chart
+from ambient_tool.chart import build_chart, get_y_axis_bounds
 
 
 def test_build_chart_writes_png(tmp_path, monkeypatch):
@@ -76,3 +76,29 @@ def test_build_chart_supports_bar_style(tmp_path, monkeypatch):
     assert result == out
     assert out.exists()
     assert out.read_bytes().startswith(b"\x89PNG")
+
+def test_get_y_axis_bounds_uses_data_padding_for_pressure():
+    y_min, y_max = get_y_axis_bounds(
+        series_values=[[29.42, 29.45, 29.48]],
+        units={"inHg"},
+        style="line",
+    )
+
+    assert y_min is not None
+    assert y_max is not None
+    assert y_min > 29.0
+    assert y_max < 30.0
+    assert y_min < 29.42
+    assert y_max > 29.48
+
+
+def test_get_y_axis_bounds_keeps_rain_bar_baseline_at_zero():
+    y_min, y_max = get_y_axis_bounds(
+        series_values=[[0.0, 0.12, 0.3]],
+        units={"in"},
+        style="bar",
+    )
+
+    assert y_min == 0.0
+    assert y_max is not None
+    assert y_max > 0.3

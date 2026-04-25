@@ -18,6 +18,7 @@ from ambient_tool.derived import (
 )
 from ambient_tool.export_csv import write_rows_to_csv
 from ambient_tool.export_json import write_rows_to_json
+from ambient_tool.frost import build_frost_risk_report
 from ambient_tool.query import (
     get_grouped_fieldnames,
     get_grouped_observations_for_columns,
@@ -363,6 +364,23 @@ def format_trend_value(value: float | None) -> str:
         return "N/A"
     return f"{value:.2f}"
 
+def format_frost_value(value: float | None, unit: str) -> str:
+    if value is None:
+        return "N/A"
+    return f"{value:.1f} {unit}"
+
+
+def run_frost(hours: int) -> None:
+    report = build_frost_risk_report(hours=hours)
+
+    print(f"\nFrost / Freeze Risk — last {hours} hour(s)\n")
+    print(f"Risk:           {report.risk}")
+    print(f"Reason:         {report.reason}")
+    print(f"Overnight low:  {format_frost_value(report.overnight_low, '°F')}")
+    print(f"Current temp:   {format_frost_value(report.current_temp, '°F')}")
+    print(f"Current dew pt: {format_frost_value(report.current_dew_point, '°F')}")
+    print(f"Current wind:   {format_frost_value(report.current_wind_mph, 'mph')}")
+    print()
 
 def print_trend_block(results, hours: int) -> None:
     print(f"\nTrend summary: last {hours} hour(s)\n")
@@ -654,7 +672,7 @@ def build_parser():
         action="store_true",
         help="Plot exactly two fields on separate y-axes",
     )
-    
+
     trend_parser = subparsers.add_parser(
         "trend",
         help="Show trend statistics from local data",
@@ -688,6 +706,17 @@ def build_parser():
         default=["temp"],
         metavar="FIELD",
         help="Fields to analyze, e.g. --show temp dewpoint pressure spread",
+    )
+
+    frost_parser = subparsers.add_parser(
+        "frost",
+        help="Estimate frost/freeze risk from local observations",
+    )
+    frost_parser.add_argument(
+        "--hours",
+        type=int,
+        default=24,
+        help="Number of hours to look back",
     )
 
     export_parser = subparsers.add_parser(
@@ -818,6 +847,9 @@ def main() -> None:
         elif command == "trend":
             output_format = "table" if args.table else args.output_format
             run_trend(args.show, args.hours, output_format, args.last)
+
+        elif command == "frost":
+            run_frost(args.hours)
 
         elif command == "chart":
             run_chart(args)

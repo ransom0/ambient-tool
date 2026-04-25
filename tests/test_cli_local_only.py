@@ -202,3 +202,32 @@ def test_main_summary_still_builds_client(monkeypatch) -> None:
     main()
 
     assert events == ["build_client", "get_devices", "print_summary"]
+
+def test_main_frost_does_not_build_client(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "ambient",
+            "frost",
+            "--hours",
+            "18",
+        ],
+    )
+
+    def fail_build_client():
+        raise AssertionError("build_client should not be called for frost command")
+
+    def fake_run_frost(hours):
+        captured["hours"] = hours
+
+    monkeypatch.setattr("ambient_tool.cli.build_client", fail_build_client)
+    monkeypatch.setattr("ambient_tool.cli.run_frost", fake_run_frost)
+
+    main()
+
+    assert captured == {
+        "hours": 18,
+    }

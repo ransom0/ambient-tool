@@ -13,12 +13,39 @@ import matplotlib.pyplot as plt
 from ambient_tool.query import get_recent_observations_for_columns
 from ambient_tool.trend import TREND_FIELDS, normalize_show_fields
 
+def plot_series(
+    *,
+    times: list[datetime],
+    values: list[float | None],
+    label: str,
+    style: str,
+) -> None:
+    if style == "line":
+        plt.plot(times, values, label=label, linewidth=2)
+        return
+
+    if style == "step":
+        plt.step(times, values, label=label, linewidth=2, where="post")
+        return
+
+    if style == "area":
+        plt.plot(times, values, label=label, linewidth=2)
+        plt.fill_between(times, values, alpha=0.25)
+        return
+
+    if style == "bar":
+        plt.bar(times, values, label=label, width=0.02)
+        return
+
+    raise ValueError(f"Unsupported chart style: {style}")
+
 def build_chart(
     *,
     hours: int,
     show: list[str],
     out: Path,
     last: int | None = None,
+    style: str = "line",
 ) -> Path:
     requested_fields = normalize_show_fields(show)
 
@@ -54,18 +81,18 @@ def build_chart(
         field = TREND_FIELDS[field_name]
         values = [field.value_getter(row) for row in rows]
 
-        plt.plot(
-            times,
-            values,
-            label=field.label,
-            linewidth=2,
-        )
+    plot_series(
+        times=times,
+        values=values,
+        label=field.label,
+        style=style,
+    )
 
-        units.add(field.unit)
+    units.add(field.unit)
 
     title = " / ".join(TREND_FIELDS[name].label for name in requested_fields)
 
-    plt.title(f"{title} — Last {hours} Hour(s)")
+    plt.title(f"{title} — Last {hours} Hour(s) — {style.title()} Chart")
     plt.xlabel("Observation Time (UTC)")
 
     if len(units) == 1:

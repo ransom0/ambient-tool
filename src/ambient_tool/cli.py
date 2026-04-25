@@ -550,6 +550,7 @@ def run_chart(args: argparse.Namespace) -> None:
         show=args.show,
         out=args.out,
         last=args.last,
+        style=args.style,
     )
 
     print(f"Chart written to {out}")
@@ -638,6 +639,13 @@ def build_parser():
         type=int,
         default=None,
         help="Use last N observations after filtering",
+    )
+
+    chart_parser.add_argument(
+        "--style",
+        choices=["line", "step", "area", "bar"],
+        default="line",
+        help="Chart style to render",
     )
 
     trend_parser = subparsers.add_parser(

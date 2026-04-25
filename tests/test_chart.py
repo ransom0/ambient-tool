@@ -45,3 +45,34 @@ def test_build_chart_rejects_empty_local_data(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="No local observations"):
         build_chart(hours=24, show=["pressure"], out=tmp_path / "chart.png")
+
+def test_build_chart_supports_bar_style(tmp_path, monkeypatch):
+    def fake_rows(*, hours, columns):
+        return [
+            {
+                "observation_time_utc": "2026-04-24T00:00:00+00:00",
+                "hourlyrainin": 0.0,
+            },
+            {
+                "observation_time_utc": "2026-04-24T01:00:00+00:00",
+                "hourlyrainin": 0.12,
+            },
+        ]
+
+    monkeypatch.setattr(
+        "ambient_tool.chart.get_recent_observations_for_columns",
+        fake_rows,
+    )
+
+    out = tmp_path / "rain_bar.png"
+
+    result = build_chart(
+        hours=24,
+        show=["hourlyrain"],
+        out=out,
+        style="bar",
+    )
+
+    assert result == out
+    assert out.exists()
+    assert out.read_bytes().startswith(b"\x89PNG")

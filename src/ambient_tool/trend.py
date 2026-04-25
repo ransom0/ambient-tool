@@ -115,6 +115,13 @@ TREND_FIELDS: dict[str, TrendField] = {
         required_columns=("tempf", "feels_like"),
         value_getter=_get_derived("feels_like_delta"),
     ),
+    "vpd": TrendField(
+        name="vpd",
+        label="Vapor Pressure Deficit",
+        unit="kPa",
+        required_columns=("tempf", "humidity"),
+        value_getter=_get_derived("vpd"),
+    ),
     "hourlyrain": TrendField(
         name="hourlyrain",
         label="Rain (Hourly)",
@@ -389,7 +396,7 @@ def get_recent_trend_rows(
             precomputed_values[field_name] = compute_rolling_pressure_tendency_3hr(rows)
         elif field_name == "rainfall_rate":
             precomputed_values[field_name] = compute_rolling_rainfall_rate(rows)
-            
+
     start_index = max(len(rows) - limit, 0)
     recent_rows = rows[start_index:]
 

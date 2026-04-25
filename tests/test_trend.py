@@ -120,6 +120,10 @@ def test_feels_like_delta_field_definition_exists() -> None:
     field = TREND_FIELDS["feels_like_delta"]
     assert field.required_columns == ("tempf", "feels_like")
 
+def test_vpd_field_definition_exists() -> None:
+    field = TREND_FIELDS["vpd"]
+    assert field.required_columns == ("tempf", "humidity")
+    assert field.unit == "kPa"
 
 def test_summarize_trends_computes_gust_delta_and_feels_like_delta(monkeypatch) -> None:
     fake_rows = [

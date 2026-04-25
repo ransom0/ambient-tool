@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+import math
 from typing import Any
 
 DERIVED_FIELDS: tuple[str, ...] = (
@@ -8,13 +9,15 @@ DERIVED_FIELDS: tuple[str, ...] = (
     "gust_delta",
     "feels_like_delta",
     "pressure_tendency_3hr",
+    "vpd"
 )
 
 _REQUIRED_SOURCE_FIELDS: dict[str, tuple[str, ...]] = {
     "spread": ("tempf", "dew_point"),
     "gust_delta": ("windspeedmph", "windgustmph"),
     "feels_like_delta": ("tempf", "feels_like"),
-    "pressure_tendency_3hr": ("baromelin",),
+    "pressure_tendency_3hr": ("baromrelin",),
+    "vpd": ("tempf", "humidity"),
 }
 
 
@@ -60,6 +63,24 @@ def compute_derived_value(name: str, row: Mapping[str, Any]) -> float | None:
         if tempf is None or feels_like is None:
             return None
         return float(tempf) - float(feels_like)
+
+    if name == "vpd":
+        tempf = _safe_get(row, "tempf")
+        humidity = _safe_get(row, "humidity")
+        if tempf is None or humidity is None:
+            return None
+
+        temp_c = (float(tempf) - 32.0) * 5.0 / 9.0
+        relative_humidity = float(humidity)
+
+        saturation_vapor_pressure = 0.6108 * math.exp(
+            (17.27 * temp_c) / (temp_c + 237.3)
+        )
+        actual_vapor_pressure = saturation_vapor_pressure * (
+            relative_humidity / 100.0
+        )
+
+        return saturation_vapor_pressure - actual_vapor_pressure
 
     raise ValueError(f"Unsupported derived field: {name}")
 

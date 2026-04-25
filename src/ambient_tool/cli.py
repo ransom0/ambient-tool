@@ -20,6 +20,7 @@ from ambient_tool.derived import (
 )
 from ambient_tool.export_csv import write_rows_to_csv
 from ambient_tool.export_json import write_rows_to_json
+from ambient_tool.analyze import build_local_weather_analysis
 from ambient_tool.frost import build_frost_risk_report
 from ambient_tool.query import (
     get_grouped_fieldnames,
@@ -371,7 +372,6 @@ def format_frost_value(value: float | None, unit: str) -> str:
         return "N/A"
     return f"{value:.1f} {unit}"
 
-
 def run_frost(hours: int) -> None:
     report = build_frost_risk_report(hours=hours)
 
@@ -385,6 +385,33 @@ def run_frost(hours: int) -> None:
     print(f"Current dew pt: {format_frost_value(report.current_dew_point, '°F')}")
     print(f"Temp spread:    {format_frost_value(report.spread, '°F')}")
     print(f"Current wind:   {format_frost_value(report.current_wind_mph, 'mph')}")
+    print()
+
+def run_analyze(hours: int) -> None:
+    frost_report = build_frost_risk_report(hours=hours)
+
+    pressure_results = summarize_trends(
+        hours=hours,
+        show_fields=["pressure_tendency_3hr", "rainfall_rate"],
+    )
+
+    values = {
+        result.field.name: result.stats.latest
+        for result in pressure_results
+    }
+
+    analysis = build_local_weather_analysis(
+        hours=hours,
+        pressure_tendency_3hr=values.get("pressure_tendency_3hr"),
+        rainfall_rate=values.get("rainfall_rate"),
+        frost_report=frost_report,
+    )
+
+    print(f"\nLocal Weather Analysis — last {hours} hour(s)\n")
+    print(f"Pressure: {analysis.pressure}")
+    print(f"Moisture: {analysis.moisture}")
+    print(f"Rain:     {analysis.rain}")
+    print(f"Frost:    {analysis.frost}")
     print()
 
 def print_trend_block(results, hours: int) -> None:
@@ -724,6 +751,17 @@ def build_parser():
         help="Number of hours to look back",
     )
 
+    analyze_parser = subparsers.add_parser(
+        "analyze",
+        help="Interpret recent local weather conditions",
+    )
+    analyze_parser.add_argument(
+        "--hours",
+        type=int,
+        default=24,
+        help="Number of hours to look back",
+    )
+
     export_parser = subparsers.add_parser(
         "export",
         help="Export local observation data",
@@ -855,6 +893,9 @@ def main() -> None:
 
         elif command == "frost":
             run_frost(args.hours)
+
+        elif command == "analyze":
+            run_analyze(args.hours)
 
         elif command == "chart":
             run_chart(args)

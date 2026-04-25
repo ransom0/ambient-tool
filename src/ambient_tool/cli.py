@@ -7,8 +7,6 @@ from pathlib import Path
 from pprint import pprint
 from zoneinfo import ZoneInfo
 
-from rich.diagnose import report
-
 from ambient_tool.chart import build_chart
 from ambient_tool.client import build_client
 from ambient_tool.derived import (
@@ -392,7 +390,7 @@ def run_analyze(hours: int) -> None:
 
     pressure_results = summarize_trends(
         hours=hours,
-        show_fields=["pressure_tendency_3hr", "rainfall_rate"],
+        show_fields=["pressure_tendency_3hr", "rainfall_rate", "gust_delta"],
     )
 
     values = {
@@ -404,6 +402,7 @@ def run_analyze(hours: int) -> None:
         hours=hours,
         pressure_tendency_3hr=values.get("pressure_tendency_3hr"),
         rainfall_rate=values.get("rainfall_rate"),
+        gust_delta=values.get("gust_delta"),
         frost_report=frost_report,
     )
 
@@ -411,6 +410,7 @@ def run_analyze(hours: int) -> None:
     print(f"Pressure: {analysis.pressure}")
     print(f"Moisture: {analysis.moisture}")
     print(f"Rain:     {analysis.rain}")
+    print(f"Storm:    {analysis.storm_setup}")
     print(f"Frost:    {analysis.frost}")
     print()
 

@@ -74,6 +74,7 @@ def test_build_local_weather_analysis() -> None:
         hours=24,
         pressure_tendency_3hr=-0.07,
         rainfall_rate=0.12,
+        gust_delta=11.0,
         frost_report=frost_report,
     )
 
@@ -82,3 +83,4 @@ def test_build_local_weather_analysis() -> None:
     assert "moderately moist" in analysis.moisture
     assert "Moderate" in analysis.rain
     assert "Frost Watch" in analysis.frost
+    assert "Monitor" in analysis.storm_setup

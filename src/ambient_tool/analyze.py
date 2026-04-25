@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ambient_tool.frost import FrostRiskReport
-from ambient_tool.severe import describe_storm_setup
+from ambient_tool.severe import StormSetupReport, build_storm_setup_report, describe_storm_setup
 
 
 @dataclass(frozen=True)
@@ -12,7 +12,7 @@ class LocalWeatherAnalysis:
     pressure: str
     moisture: str
     rain: str
-    storm_setup: str
+    storm_setup: StormSetupReport
     frost: str
 
 
@@ -73,7 +73,7 @@ def build_local_weather_analysis(
             current_dew_point=frost_report.current_dew_point,
         ),
         rain=describe_rainfall_rate(rainfall_rate),
-        storm_setup=describe_storm_setup(
+        storm_setup=build_storm_setup_report(
             pressure_tendency_3hr=pressure_tendency_3hr,
             temp_dewpoint_spread=frost_report.spread,
             gust_delta=gust_delta,

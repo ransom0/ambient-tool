@@ -83,4 +83,5 @@ def test_build_local_weather_analysis() -> None:
     assert "moderately moist" in analysis.moisture
     assert "Moderate" in analysis.rain
     assert "Frost Watch" in analysis.frost
-    assert "Monitor" in analysis.storm_setup
+    assert "Monitor" in analysis.storm_setup.headline
+    assert "falling pressure" in analysis.storm_setup.signals

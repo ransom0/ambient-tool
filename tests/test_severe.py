@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ambient_tool.severe import describe_storm_setup
+from ambient_tool.severe import build_storm_setup_report, describe_storm_setup
 
 
 def test_describe_storm_setup_unavailable() -> None:
@@ -56,3 +56,17 @@ def test_describe_storm_setup_quiet() -> None:
     )
 
     assert result == "Quiet / weak storm signal."
+
+def test_build_storm_setup_report_includes_signals() -> None:
+    report = build_storm_setup_report(
+        pressure_tendency_3hr=-0.08,
+        temp_dewpoint_spread=5.0,
+        gust_delta=12.0,
+        rainfall_rate=0.0,
+    )
+
+    assert report.headline == "Monitor for storm development."
+    assert "falling pressure" in report.signals
+    assert "moist air" in report.signals
+    assert "gusty wind signal" in report.signals
+    assert "no recent rainfall" in report.signals

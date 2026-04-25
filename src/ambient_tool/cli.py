@@ -410,7 +410,8 @@ def run_analyze(hours: int) -> None:
     print(f"Pressure: {analysis.pressure}")
     print(f"Moisture: {analysis.moisture}")
     print(f"Rain:     {analysis.rain}")
-    print(f"Storm:    {analysis.storm_setup}")
+    print(f"Storm:    {analysis.storm_setup.headline}")
+    print(f"          Main signals: {', '.join(analysis.storm_setup.signals)}")
     print(f"Frost:    {analysis.frost}")
     print()
 

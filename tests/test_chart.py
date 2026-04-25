@@ -102,3 +102,57 @@ def test_get_y_axis_bounds_keeps_rain_bar_baseline_at_zero():
     assert y_min == 0.0
     assert y_max is not None
     assert y_max > 0.3
+
+def test_build_chart_supports_dual_axis(tmp_path, monkeypatch):
+    def fake_rows(*, hours, columns):
+        assert columns == ["observation_time_utc", "tempf", "baromrelin"]
+        return [
+            {
+                "observation_time_utc": "2026-04-24T00:00:00+00:00",
+                "tempf": 70.0,
+                "baromrelin": 29.42,
+            },
+            {
+                "observation_time_utc": "2026-04-24T01:00:00+00:00",
+                "tempf": 72.0,
+                "baromrelin": 29.45,
+            },
+        ]
+
+    monkeypatch.setattr(
+        "ambient_tool.chart.get_recent_observations_for_columns",
+        fake_rows,
+    )
+
+    out = tmp_path / "dual_axis.png"
+
+    result = build_chart(
+        hours=24,
+        show=["temp", "pressure"],
+        out=out,
+        dual_axis=True,
+    )
+
+    assert result == out
+    assert out.exists()
+    assert out.read_bytes().startswith(b"\x89PNG")
+
+def test_build_chart_rejects_dual_axis_with_more_than_two_fields(tmp_path):
+    with pytest.raises(ValueError, match="requires exactly two fields"):
+        build_chart(
+            hours=24,
+            show=["temp", "dewpoint", "pressure"],
+            out=tmp_path / "bad.png",
+            dual_axis=True,
+        )
+
+
+def test_build_chart_rejects_dual_axis_with_bar_style(tmp_path):
+    with pytest.raises(ValueError, match="only supports line or step"):
+        build_chart(
+            hours=24,
+            show=["temp", "pressure"],
+            out=tmp_path / "bad.png",
+            style="bar",
+            dual_axis=True,
+        )

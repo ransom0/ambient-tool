@@ -551,6 +551,7 @@ def run_chart(args: argparse.Namespace) -> None:
         out=args.out,
         last=args.last,
         style=args.style,
+        dual_axis=args.dual_axis,
     )
 
     print(f"Chart written to {out}")
@@ -648,6 +649,12 @@ def build_parser():
         help="Chart style to render",
     )
 
+    chart_parser.add_argument(
+        "--dual-axis",
+        action="store_true",
+        help="Plot exactly two fields on separate y-axes",
+    )
+    
     trend_parser = subparsers.add_parser(
         "trend",
         help="Show trend statistics from local data",

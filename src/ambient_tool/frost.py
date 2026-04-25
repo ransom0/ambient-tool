@@ -11,11 +11,13 @@ class FrostRiskReport:
     hours: int
     risk: str
     reason: str
+    meaning: str
+    next_check: str
     overnight_low: float | None
     current_temp: float | None
     current_dew_point: float | None
     current_wind_mph: float | None
-
+    spread: float | None
 
 def _to_float(value) -> float | None:
     if value is None:
@@ -48,6 +50,28 @@ def classify_frost_risk(
 
     return "None", "Overnight low is above the frost-risk range."
 
+def interpret_risk(risk: str) -> str:
+    if risk == "Freeze Risk":
+        return "Sensitive plants may need protection or covering."
+    if risk == "Frost Likely":
+        return "Surface frost is plausible in exposed areas."
+    if risk == "Frost Watch":
+        return "Conditions are borderline. Continue monitoring."
+    if risk == "None":
+        return "No significant frost concern indicated."
+    return "Insufficient data for interpretation."
+
+
+def next_check_advice(risk: str) -> str:
+    if risk == "Freeze Risk":
+        return "Recheck near sunset and before dawn."
+    if risk == "Frost Likely":
+        return "Recheck after midnight if winds stay light."
+    if risk == "Frost Watch":
+        return "Recheck late evening as temperatures fall."
+    if risk == "None":
+        return "Check again only if forecast trends colder."
+    return "Wait for more observations."
 
 def build_frost_risk_report(hours: int) -> FrostRiskReport:
     rows = get_recent_observations_for_columns(
@@ -65,10 +89,13 @@ def build_frost_risk_report(hours: int) -> FrostRiskReport:
             hours=hours,
             risk="Unknown",
             reason="No local observations found for the requested time range.",
+            meaning="Insufficient data for interpretation.",
+            next_check="Wait for more observations.",
             overnight_low=None,
             current_temp=None,
             current_dew_point=None,
             current_wind_mph=None,
+            spread=None,
         )
 
     overnight_values = compute_rolling_overnight_low(rows)
@@ -81,6 +108,9 @@ def build_frost_risk_report(hours: int) -> FrostRiskReport:
     current_temp = _to_float(latest["tempf"])
     current_dew_point = _to_float(latest["dew_point"])
     current_wind_mph = _to_float(latest["windspeedmph"])
+    spread = None
+    if current_temp is not None and current_dew_point is not None:
+        spread = current_temp - current_dew_point
 
     risk, reason = classify_frost_risk(
         overnight_low=overnight_low,
@@ -93,8 +123,11 @@ def build_frost_risk_report(hours: int) -> FrostRiskReport:
         hours=hours,
         risk=risk,
         reason=reason,
+        meaning=interpret_risk(risk),
+        next_check=next_check_advice(risk),
         overnight_low=overnight_low,
         current_temp=current_temp,
         current_dew_point=current_dew_point,
         current_wind_mph=current_wind_mph,
+        spread=spread,
     )

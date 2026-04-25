@@ -7,6 +7,8 @@ from pathlib import Path
 from pprint import pprint
 from zoneinfo import ZoneInfo
 
+from rich.diagnose import report
+
 from ambient_tool.chart import build_chart
 from ambient_tool.client import build_client
 from ambient_tool.derived import (
@@ -376,9 +378,12 @@ def run_frost(hours: int) -> None:
     print(f"\nFrost / Freeze Risk — last {hours} hour(s)\n")
     print(f"Risk:           {report.risk}")
     print(f"Reason:         {report.reason}")
+    print(f"Meaning:        {report.meaning}")
+    print(f"Next check:     {report.next_check}")
     print(f"Overnight low:  {format_frost_value(report.overnight_low, '°F')}")
     print(f"Current temp:   {format_frost_value(report.current_temp, '°F')}")
     print(f"Current dew pt: {format_frost_value(report.current_dew_point, '°F')}")
+    print(f"Temp spread:    {format_frost_value(report.spread, '°F')}")
     print(f"Current wind:   {format_frost_value(report.current_wind_mph, 'mph')}")
     print()
 

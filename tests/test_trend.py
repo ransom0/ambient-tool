@@ -125,6 +125,11 @@ def test_vpd_field_definition_exists() -> None:
     assert field.required_columns == ("tempf", "humidity")
     assert field.unit == "kPa"
 
+def test_heat_index_anomaly_field_definition_exists() -> None:
+    field = TREND_FIELDS["heat_index_anomaly"]
+    assert field.required_columns == ("tempf", "feels_like")
+    assert field.unit == "°F"
+
 def test_summarize_trends_computes_gust_delta_and_feels_like_delta(monkeypatch) -> None:
     fake_rows = [
         {
@@ -190,6 +195,7 @@ from ambient_tool.trend import (
     compute_pressure_tendency_3hr,
     compute_rolling_pressure_tendency_3hr,
     compute_rolling_rainfall_rate,
+    compute_rolling_overnight_low,
 )
 
 def test_compute_pressure_tendency_3hr():
@@ -258,3 +264,35 @@ def test_compute_rolling_rainfall_rate():
     assert values[0] is None
     assert values[1] == pytest.approx(0.30)
     assert values[2] == pytest.approx(0.30)
+
+def test_overnight_low_field_definition_exists() -> None:
+    field = TREND_FIELDS["overnight_low"]
+    assert field.required_columns == ("tempf",)
+    assert field.unit == "°F"
+
+def test_compute_rolling_overnight_low():
+    rows = [
+        {
+            "observation_time_utc": "2026-04-25T00:00:00+00:00",  # 7 PM local
+            "tempf": 70.0,
+        },
+        {
+            "observation_time_utc": "2026-04-25T03:00:00+00:00",  # 10 PM local
+            "tempf": 66.0,
+        },
+        {
+            "observation_time_utc": "2026-04-25T09:00:00+00:00",  # 4 AM local
+            "tempf": 61.0,
+        },
+        {
+            "observation_time_utc": "2026-04-25T13:00:00+00:00",  # 8 AM local
+            "tempf": 64.0,
+        },
+    ]
+
+    assert compute_rolling_overnight_low(rows) == [
+        70.0,
+        66.0,
+        61.0,
+        61.0,
+    ]

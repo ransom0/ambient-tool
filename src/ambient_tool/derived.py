@@ -9,7 +9,8 @@ DERIVED_FIELDS: tuple[str, ...] = (
     "gust_delta",
     "feels_like_delta",
     "pressure_tendency_3hr",
-    "vpd"
+    "vpd",
+    "heat_index_anomaly",
 )
 
 _REQUIRED_SOURCE_FIELDS: dict[str, tuple[str, ...]] = {
@@ -18,6 +19,7 @@ _REQUIRED_SOURCE_FIELDS: dict[str, tuple[str, ...]] = {
     "feels_like_delta": ("tempf", "feels_like"),
     "pressure_tendency_3hr": ("baromrelin",),
     "vpd": ("tempf", "humidity"),
+    "heat_index_anomaly": ("tempf", "feels_like"),
 }
 
 
@@ -63,6 +65,14 @@ def compute_derived_value(name: str, row: Mapping[str, Any]) -> float | None:
         if tempf is None or feels_like is None:
             return None
         return float(tempf) - float(feels_like)
+
+    if name == "heat_index_anomaly":
+        tempf = _safe_get(row, "tempf")
+        feels_like = _safe_get(row, "feels_like")
+        if tempf is None or feels_like is None:
+            return None
+        heat_index_anomaly = float(feels_like) - float(tempf)
+        return heat_index_anomaly
 
     if name == "vpd":
         tempf = _safe_get(row, "tempf")

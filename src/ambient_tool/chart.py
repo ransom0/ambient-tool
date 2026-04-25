@@ -6,7 +6,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
@@ -15,6 +15,7 @@ from ambient_tool.trend import (
     TREND_FIELDS,
     compute_rolling_pressure_tendency_3hr,
     compute_rolling_rainfall_rate,
+    compute_rolling_overnight_low,
     normalize_show_fields,
 )
 
@@ -120,8 +121,6 @@ def build_chart(
         for row in rows
     ]
 
-    plt.figure(figsize=(11, 5))
-
     units: set[str] = set()
     series_to_plot: list[tuple[str, list[float | None]]] = []
 
@@ -132,6 +131,8 @@ def build_chart(
             values = compute_rolling_pressure_tendency_3hr(rows)
         elif field_name == "rainfall_rate":
             values = compute_rolling_rainfall_rate(rows)
+        elif field_name == "overnight_low":
+            values = compute_rolling_overnight_low(rows)
         else:
             values = [field.value_getter(row) for row in rows]
 

@@ -3,8 +3,10 @@ from pathlib import Path
 import pytest
 
 from ambient_tool.chart import build_chart, get_y_axis_bounds
-from ambient_tool.trend import compute_rolling_pressure_tendency_3hr
-
+from ambient_tool.trend import (
+    compute_rolling_pressure_tendency_3hr,
+    compute_rolling_overnight_low,
+)
 def test_build_chart_writes_png(tmp_path, monkeypatch):
     def fake_rows(*, hours, columns):
         assert hours == 24
@@ -182,4 +184,31 @@ def test_compute_rolling_pressure_tendency_3hr():
         None,
         pytest.approx(-0.10),
         pytest.approx(-0.04),
+    ]
+
+def test_compute_rolling_overnight_low():
+    rows = [
+        {
+            "observation_time_utc": "2026-04-25T00:00:00+00:00",
+            "tempf": 70.0,
+        },
+        {
+            "observation_time_utc": "2026-04-25T03:00:00+00:00",
+            "tempf": 66.0,
+        },
+        {
+            "observation_time_utc": "2026-04-25T09:00:00+00:00",
+            "tempf": 61.0,
+        },
+        {
+            "observation_time_utc": "2026-04-25T13:00:00+00:00",
+            "tempf": 64.0,
+        },
+    ]
+
+    assert compute_rolling_overnight_low(rows) == [
+        70.0,
+        66.0,
+        61.0,
+        61.0,
     ]

@@ -19,6 +19,7 @@ def test_derived_field_names_contains_expected_metrics() -> None:
         "feels_like_delta",
         "pressure_tendency_3hr",
         "vpd",
+        "heat_index_anomaly",
     )
 
 
@@ -28,6 +29,7 @@ def test_is_derived_field_identifies_supported_fields() -> None:
     assert is_derived_field("feels_like_delta") is True
     assert is_derived_field("tempf") is False
     assert is_derived_field("vpd") is True
+    assert is_derived_field("heat_index_anomaly") is True
 
 
 def test_required_source_fields_for_spread() -> None:
@@ -43,6 +45,9 @@ def test_required_source_fields_for_feels_like_delta() -> None:
 
 def test_required_source_fields_for_vpd() -> None:
     assert required_source_fields("vpd") == ("tempf", "humidity")
+
+def test_required_source_fields_for_heat_index_anomaly() -> None:
+    assert required_source_fields("heat_index_anomaly") == ("tempf", "feels_like")
 
 def test_compute_derived_value_spread() -> None:
     row = {"tempf": 72.0, "dew_point": 60.5}
@@ -63,12 +68,19 @@ def test_compute_derived_value_vpd() -> None:
 
     assert compute_derived_value("vpd", row) == pytest.approx(2.12, abs=0.01)
 
+def test_compute_derived_value_heat_index_anomaly() -> None:
+    row = {"tempf": 92.0, "feels_like": 98.0}
+
+    assert compute_derived_value("heat_index_anomaly", row) == 6.0
+
 def test_compute_derived_value_returns_none_when_inputs_missing() -> None:
     assert compute_derived_value("spread", {"dew_point": 60.0}) is None
     assert compute_derived_value("gust_delta", {"windgustmph": 15.0}) is None
     assert compute_derived_value("feels_like_delta", {"tempf": 90.0}) is None
     assert compute_derived_value("vpd", {"humidity": 50.0}) is None
     assert compute_derived_value("vpd", {"tempf": 86.0}) is None
+    assert compute_derived_value("heat_index_anomaly", {"feels_like": 98.0}) is None
+    assert compute_derived_value("heat_index_anomaly", {"tempf": 92.0}) is None
 
 def test_add_derived_fields_adds_multiple_metrics() -> None:
     rows = [

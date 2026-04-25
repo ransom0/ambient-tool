@@ -66,6 +66,13 @@ TREND_FIELDS: dict[str, TrendField] = {
         required_columns=("tempf",),
         value_getter=_get_single("tempf"),
     ),
+    "overnight_low": TrendField(
+        name="overnight_low",
+        label="Overnight Low",
+        unit="°F",
+        required_columns=("tempf",),
+        value_getter=_get_single("tempf"),  # contextual override below
+    ),
     "dewpoint": TrendField(
         name="dewpoint",
         label="Dew Point",
@@ -114,6 +121,13 @@ TREND_FIELDS: dict[str, TrendField] = {
         unit="°F",
         required_columns=("tempf", "feels_like"),
         value_getter=_get_derived("feels_like_delta"),
+    ),
+    "heat_index_anomaly": TrendField(
+        name="heat_index_anomaly",
+        label="Heat Index Anomaly",
+        unit="°F",
+        required_columns=("tempf", "feels_like"),
+        value_getter=_get_derived("heat_index_anomaly"),
     ),
     "vpd": TrendField(
         name="vpd",
@@ -313,6 +327,45 @@ def compute_rolling_rainfall_rate(rows) -> list[float | None]:
 
     return results
 
+def compute_rolling_overnight_low(rows) -> list[float | None]:
+    results: list[float | None] = []
+
+    running_low: float | None = None
+    active_window_start = None
+
+    for row in rows:
+        tempf = row["tempf"]
+
+        if tempf is None:
+            results.append(running_low)
+            continue
+
+        dt_utc = datetime.fromisoformat(
+            row["observation_time_utc"].replace("Z", "+00:00")
+        )
+
+        # Texarkana current project simplification = UTC-5
+        local_dt = dt_utc - timedelta(hours=5)
+
+        if local_dt.hour >= 18:
+            window_start = local_dt.replace(
+                hour=18, minute=0, second=0, microsecond=0
+            )
+        else:
+            prior_day = local_dt - timedelta(days=1)
+            window_start = prior_day.replace(
+                hour=18, minute=0, second=0, microsecond=0
+            )
+
+        if active_window_start != window_start:
+            active_window_start = window_start
+            running_low = float(tempf)
+        else:
+            running_low = min(running_low, float(tempf))
+
+        results.append(running_low)
+
+    return results
 
 def compute_pressure_tendency_3hr(rows) -> float | None:
     values = compute_rolling_pressure_tendency_3hr(rows)
@@ -353,6 +406,12 @@ def summarize_trends(
             values = compute_rolling_rainfall_rate(rows)
             stats = _compute_stats(values)
             tendency = None
+
+        elif field_name == "overnight_low":
+            values = compute_rolling_overnight_low(rows)
+            stats = _compute_stats(values)
+            tendency = None
+
         else:
             values = [field.value_getter(row) for row in rows]
             stats = _compute_stats(values)
@@ -396,7 +455,8 @@ def get_recent_trend_rows(
             precomputed_values[field_name] = compute_rolling_pressure_tendency_3hr(rows)
         elif field_name == "rainfall_rate":
             precomputed_values[field_name] = compute_rolling_rainfall_rate(rows)
-
+        elif field_name == "overnight_low":
+            precomputed_values[field_name] = compute_rolling_overnight_low(rows)
     start_index = max(len(rows) - limit, 0)
     recent_rows = rows[start_index:]
 

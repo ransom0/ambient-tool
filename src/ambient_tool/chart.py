@@ -14,6 +14,7 @@ from ambient_tool.query import get_recent_observations_for_columns
 from ambient_tool.trend import (
     TREND_FIELDS,
     compute_rolling_pressure_tendency_3hr,
+    compute_rolling_rainfall_rate,
     normalize_show_fields,
 )
 
@@ -129,6 +130,8 @@ def build_chart(
 
         if field_name == "pressure_tendency_3hr":
             values = compute_rolling_pressure_tendency_3hr(rows)
+        elif field_name == "rainfall_rate":
+            values = compute_rolling_rainfall_rate(rows)
         else:
             values = [field.value_getter(row) for row in rows]
 

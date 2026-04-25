@@ -185,6 +185,7 @@ def test_summarize_trends_computes_gust_delta_and_feels_like_delta(monkeypatch) 
 from ambient_tool.trend import (
     compute_pressure_tendency_3hr,
     compute_rolling_pressure_tendency_3hr,
+    compute_rolling_rainfall_rate,
 )
 
 def test_compute_pressure_tendency_3hr():
@@ -231,3 +232,25 @@ def test_compute_rolling_pressure_tendency_3hr():
         pytest.approx(-0.10),
         pytest.approx(-0.04),
     ]
+
+def test_compute_rolling_rainfall_rate():
+    rows = [
+        {
+            "observation_time_utc": "2026-04-24T00:00:00+00:00",
+            "hourlyrainin": 0.00,
+        },
+        {
+            "observation_time_utc": "2026-04-24T00:10:00+00:00",
+            "hourlyrainin": 0.05,
+        },
+        {
+            "observation_time_utc": "2026-04-24T00:20:00+00:00",
+            "hourlyrainin": 0.10,
+        },
+    ]
+
+    values = compute_rolling_rainfall_rate(rows)
+
+    assert values[0] is None
+    assert values[1] == pytest.approx(0.30)
+    assert values[2] == pytest.approx(0.30)

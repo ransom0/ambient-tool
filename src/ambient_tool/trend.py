@@ -150,6 +150,13 @@ TREND_FIELDS: dict[str, TrendField] = {
         required_columns=("yearlyrainin",),
         value_getter=_get_single("yearlyrainin"),
     ),
+    "rainfall_rate": TrendField(
+        name="rainfall_rate",
+        label="Rainfall Rate",
+        unit="in/hr",
+        required_columns=("hourlyrainin",),
+        value_getter=_get_single("hourlyrainin"), # contextual override below
+    )
 }
 
 
@@ -256,6 +263,49 @@ def compute_rolling_pressure_tendency_3hr(rows) -> list[float | None]:
 
     return results
 
+def compute_rolling_rainfall_rate(rows) -> list[float | None]:
+    results: list[float | None] = []
+
+    previous_row = None
+
+    for row in rows:
+        if previous_row is None:
+            results.append(None)
+            previous_row = row
+            continue
+
+        prev_rain = previous_row["hourlyrainin"]
+        curr_rain = row["hourlyrainin"]
+
+        if prev_rain is None or curr_rain is None:
+            results.append(None)
+            previous_row = row
+            continue
+
+        prev_dt = datetime.fromisoformat(
+            previous_row["observation_time_utc"].replace("Z", "+00:00")
+        )
+        curr_dt = datetime.fromisoformat(
+            row["observation_time_utc"].replace("Z", "+00:00")
+        )
+
+        elapsed_hours = (curr_dt - prev_dt).total_seconds() / 3600
+
+        if elapsed_hours <= 0:
+            results.append(None)
+            previous_row = row
+            continue
+
+        delta = float(curr_rain) - float(prev_rain)
+
+        if delta < 0:
+            delta = 0.0
+
+        results.append(delta / elapsed_hours)
+        previous_row = row
+
+    return results
+
 
 def compute_pressure_tendency_3hr(rows) -> float | None:
     values = compute_rolling_pressure_tendency_3hr(rows)
@@ -289,6 +339,11 @@ def summarize_trends(
 
         if field_name == "pressure_tendency_3hr":
             values = compute_rolling_pressure_tendency_3hr(rows)
+            stats = _compute_stats(values)
+            tendency = None
+
+        elif field_name == "rainfall_rate":
+            values = compute_rolling_rainfall_rate(rows)
             stats = _compute_stats(values)
             tendency = None
         else:
@@ -332,7 +387,9 @@ def get_recent_trend_rows(
     for field_name in requested_fields:
         if field_name == "pressure_tendency_3hr":
             precomputed_values[field_name] = compute_rolling_pressure_tendency_3hr(rows)
-
+        elif field_name == "rainfall_rate":
+            precomputed_values[field_name] = compute_rolling_rainfall_rate(rows)
+            
     start_index = max(len(rows) - limit, 0)
     recent_rows = rows[start_index:]
 

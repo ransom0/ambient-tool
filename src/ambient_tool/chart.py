@@ -55,23 +55,24 @@ def plot_series(
     label: str,
     style: str,
     fill_baseline: float | None = None,
+    color: str | None = None,
 ) -> None:
     if style == "line":
-        ax.plot(times, values, label=label, linewidth=2)
+        ax.plot(times, values, label=label, linewidth=2, color=color)
         return
 
     if style == "step":
-        ax.step(times, values, label=label, linewidth=2, where="post")
+        ax.step(times, values, label=label, linewidth=2, where="post", color=color)
         return
 
     if style == "area":
-        ax.plot(times, values, label=label, linewidth=2)
+        ax.plot(times, values, label=label, linewidth=2, color=color)
         baseline = 0.0 if fill_baseline is None else fill_baseline
-        ax.fill_between(times, values, baseline, alpha=0.25)
+        ax.fill_between(times, values, baseline, alpha=0.25, color=color)
         return
 
     if style == "bar":
-        ax.bar(times, values, label=label, width=0.02)
+        ax.bar(times, values, label=label, width=0.02, color=color)
         return
 
     raise ValueError(f"Unsupported chart style: {style}")
@@ -155,6 +156,7 @@ def build_chart(
             values=left_values,
             label=left_label,
             style=style,
+            color="tab:blue",
         )
 
         ax_right = ax.twinx()
@@ -165,6 +167,7 @@ def build_chart(
             values=right_values,
             label=right_label,
             style=style,
+            color="tab:orange",
         )
 
         if left_y_min is not None and left_y_max is not None:
@@ -173,8 +176,11 @@ def build_chart(
         if right_y_min is not None and right_y_max is not None:
             ax_right.set_ylim(right_y_min, right_y_max)
 
-        ax.set_ylabel(left_field.unit)
-        ax_right.set_ylabel(right_field.unit)
+        ax.set_ylabel(left_field.unit, color="tab:blue")
+        ax_right.set_ylabel(right_field.unit, color="tab:orange")
+
+        ax.tick_params(axis="y", colors="tab:blue")
+        ax_right.tick_params(axis="y", colors="tab:orange")
 
         left_handles, left_labels = ax.get_legend_handles_labels()
         right_handles, right_labels = ax_right.get_legend_handles_labels()

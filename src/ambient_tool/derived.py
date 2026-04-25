@@ -7,12 +7,14 @@ DERIVED_FIELDS: tuple[str, ...] = (
     "spread",
     "gust_delta",
     "feels_like_delta",
+    "pressure_tendency_3hr",
 )
 
 _REQUIRED_SOURCE_FIELDS: dict[str, tuple[str, ...]] = {
     "spread": ("tempf", "dew_point"),
     "gust_delta": ("windspeedmph", "windgustmph"),
     "feels_like_delta": ("tempf", "feels_like"),
+    "pressure_tendency_3hr": ("baromelin",),
 }
 
 

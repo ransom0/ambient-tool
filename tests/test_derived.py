@@ -15,6 +15,7 @@ def test_derived_field_names_contains_expected_metrics() -> None:
         "spread",
         "gust_delta",
         "feels_like_delta",
+        "pressure_tendency_3hr",
     )
 
 

@@ -6,16 +6,19 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
 from ambient_tool.query import get_recent_observations_for_columns
-from ambient_tool.trend import TREND_FIELDS, normalize_show_fields
+from ambient_tool.trend import (
+    TREND_FIELDS,
+    compute_rolling_pressure_tendency_3hr,
+    normalize_show_fields,
+)
 
 def clean_numeric_values(values: list[float | None]) -> list[float]:
     return [value for value in values if value is not None]
-
 
 def get_y_axis_bounds(
     *,
@@ -123,7 +126,11 @@ def build_chart(
 
     for field_name in requested_fields:
         field = TREND_FIELDS[field_name]
-        values = [field.value_getter(row) for row in rows]
+
+        if field_name == "pressure_tendency_3hr":
+            values = compute_rolling_pressure_tendency_3hr(rows)
+        else:
+            values = [field.value_getter(row) for row in rows]
 
         series_to_plot.append((field.label, values))
         units.add(field.unit)

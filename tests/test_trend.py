@@ -1,4 +1,5 @@
 from __future__ import annotations
+import pytest
 
 from ambient_tool.trend import TREND_FIELDS, normalize_show_fields, summarize_trends
 
@@ -180,3 +181,53 @@ def test_summarize_trends_computes_gust_delta_and_feels_like_delta(monkeypatch) 
     assert feels_like_delta_result.stats.avg_value == -11.0 / 3.0
     assert feels_like_delta_result.stats.sample_count == 3
     assert feels_like_delta_result.tendency is None
+
+from ambient_tool.trend import (
+    compute_pressure_tendency_3hr,
+    compute_rolling_pressure_tendency_3hr,
+)
+
+def test_compute_pressure_tendency_3hr():
+    rows = [
+        {
+            "observation_time_utc": "2026-04-24T00:00:00+00:00",
+            "baromrelin": 29.80,
+        },
+        {
+            "observation_time_utc": "2026-04-24T01:00:00+00:00",
+            "baromrelin": 29.78,
+        },
+        {
+            "observation_time_utc": "2026-04-24T03:00:00+00:00",
+            "baromrelin": 29.70,
+        },
+    ]
+
+    assert compute_pressure_tendency_3hr(rows) == pytest.approx(-0.10)
+
+def test_compute_rolling_pressure_tendency_3hr():
+    rows = [
+        {
+            "observation_time_utc": "2026-04-24T00:00:00+00:00",
+            "baromrelin": 29.80,
+        },
+        {
+            "observation_time_utc": "2026-04-24T01:00:00+00:00",
+            "baromrelin": 29.78,
+        },
+        {
+            "observation_time_utc": "2026-04-24T03:00:00+00:00",
+            "baromrelin": 29.70,
+        },
+        {
+            "observation_time_utc": "2026-04-24T04:00:00+00:00",
+            "baromrelin": 29.74,
+        },
+    ]
+
+    assert compute_rolling_pressure_tendency_3hr(rows) == [
+        None,
+        None,
+        pytest.approx(-0.10),
+        pytest.approx(-0.04),
+    ]

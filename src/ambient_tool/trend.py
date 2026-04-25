@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Callable
 
 from ambient_tool.derived import compute_derived_value
@@ -76,6 +77,13 @@ TREND_FIELDS: dict[str, TrendField] = {
         name="pressure",
         label="Pressure",
         unit="inHg",
+        required_columns=("baromrelin",),
+        value_getter=_get_single("baromrelin"),
+    ),
+    "pressure_tendency_3hr": TrendField(
+        name="pressure_tendency_3hr",
+        label="Pressure Tendency 3hr",
+        unit="inHg/3hr",
         required_columns=("baromrelin",),
         value_getter=_get_single("baromrelin"),
     ),
@@ -215,6 +223,49 @@ def compute_tendency(
         return "falling ↓"
     return "steady →"
 
+def compute_rolling_pressure_tendency_3hr(rows) -> list[float | None]:
+    results: list[float | None] = []
+
+    for index, row in enumerate(rows):
+        current_pressure = row["baromrelin"]
+
+        if current_pressure is None:
+            results.append(None)
+            continue
+
+        current_dt = datetime.fromisoformat(
+            row["observation_time_utc"].replace("Z", "+00:00")
+        )
+        target_dt = current_dt - timedelta(hours=3)
+
+        prior_pressure = None
+
+        for prior_row in reversed(rows[:index]):
+            prior_dt = datetime.fromisoformat(
+                prior_row["observation_time_utc"].replace("Z", "+00:00")
+            )
+
+            if prior_dt <= target_dt:
+                prior_pressure = prior_row["baromrelin"]
+                break
+
+        if prior_pressure is None:
+            results.append(None)
+        else:
+            results.append(float(current_pressure) - float(prior_pressure))
+
+    return results
+
+
+def compute_pressure_tendency_3hr(rows) -> float | None:
+    values = compute_rolling_pressure_tendency_3hr(rows)
+    clean_values = [value for value in values if value is not None]
+
+    if not clean_values:
+        return None
+
+    return clean_values[-1]
+
 def summarize_trends(
     hours: int,
     show_fields: list[str] | None,
@@ -235,9 +286,15 @@ def summarize_trends(
 
     for field_name in requested_fields:
         field = TREND_FIELDS[field_name]
-        values = [field.value_getter(row) for row in rows]
-        stats = _compute_stats(values)
-        tendency = compute_tendency(values, field.name)
+
+        if field_name == "pressure_tendency_3hr":
+            values = compute_rolling_pressure_tendency_3hr(rows)
+            stats = _compute_stats(values)
+            tendency = None
+        else:
+            values = [field.value_getter(row) for row in rows]
+            stats = _compute_stats(values)
+            tendency = compute_tendency(values, field.name)
 
         results.append(
             TrendSummary(
@@ -267,16 +324,31 @@ def get_recent_trend_rows(
 
     rows = get_recent_observations_for_columns(hours=hours, columns=required_columns)
 
-    recent_rows = rows[-limit:] if limit > 0 else []
+    if limit <= 0:
+        return []
+
+    precomputed_values: dict[str, list[float | None]] = {}
+
+    for field_name in requested_fields:
+        if field_name == "pressure_tendency_3hr":
+            precomputed_values[field_name] = compute_rolling_pressure_tendency_3hr(rows)
+
+    start_index = max(len(rows) - limit, 0)
+    recent_rows = rows[start_index:]
 
     results: list[TrendRecentRow] = []
 
-    for row in recent_rows:
+    for offset, row in enumerate(recent_rows):
+        row_index = start_index + offset
         values: dict[str, float | None] = {}
 
         for field_name in requested_fields:
             field = TREND_FIELDS[field_name]
-            values[field_name] = field.value_getter(row)
+
+            if field_name in precomputed_values:
+                values[field_name] = precomputed_values[field_name][row_index]
+            else:
+                values[field_name] = field.value_getter(row)
 
         results.append(
             TrendRecentRow(

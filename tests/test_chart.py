@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from ambient_tool.chart import build_chart, get_y_axis_bounds
-
+from ambient_tool.trend import compute_rolling_pressure_tendency_3hr
 
 def test_build_chart_writes_png(tmp_path, monkeypatch):
     def fake_rows(*, hours, columns):
@@ -156,3 +156,30 @@ def test_build_chart_rejects_dual_axis_with_bar_style(tmp_path):
             style="bar",
             dual_axis=True,
         )
+
+def test_compute_rolling_pressure_tendency_3hr():
+    rows = [
+        {
+            "observation_time_utc": "2026-04-24T00:00:00+00:00",
+            "baromrelin": 29.80,
+        },
+        {
+            "observation_time_utc": "2026-04-24T01:00:00+00:00",
+            "baromrelin": 29.78,
+        },
+        {
+            "observation_time_utc": "2026-04-24T03:00:00+00:00",
+            "baromrelin": 29.70,
+        },
+        {
+            "observation_time_utc": "2026-04-24T04:00:00+00:00",
+            "baromrelin": 29.74,
+        },
+    ]
+
+    assert compute_rolling_pressure_tendency_3hr(rows) == [
+        None,
+        None,
+        pytest.approx(-0.10),
+        pytest.approx(-0.04),
+    ]

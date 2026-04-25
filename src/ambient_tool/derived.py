@@ -31,30 +31,35 @@ def required_source_fields(name: str) -> tuple[str, ...]:
         raise ValueError(f"Unsupported derived field: {name}") from exc
 
 
+def _safe_get(row: Mapping[str, Any], key: str) -> Any:
+    try:
+        return row[key]
+    except (KeyError, IndexError, TypeError):
+        return None
+
 def compute_derived_value(name: str, row: Mapping[str, Any]) -> float | None:
     if name == "spread":
-        tempf = row.get("tempf")
-        dew_point = row.get("dew_point")
+        tempf = _safe_get(row, "tempf")
+        dew_point = _safe_get(row, "dew_point")
         if tempf is None or dew_point is None:
             return None
         return float(tempf) - float(dew_point)
 
     if name == "gust_delta":
-        windspeed = row.get("windspeedmph")
-        windgust = row.get("windgustmph")
+        windspeed = _safe_get(row, "windspeedmph")
+        windgust = _safe_get(row, "windgustmph")
         if windspeed is None or windgust is None:
             return None
         return float(windgust) - float(windspeed)
 
     if name == "feels_like_delta":
-        tempf = row.get("tempf")
-        feels_like = row.get("feels_like")
+        tempf = _safe_get(row, "tempf")
+        feels_like = _safe_get(row, "feels_like")
         if tempf is None or feels_like is None:
             return None
         return float(tempf) - float(feels_like)
 
     raise ValueError(f"Unsupported derived field: {name}")
-
 
 def add_derived_fields(
     rows: Iterable[Mapping[str, Any]],

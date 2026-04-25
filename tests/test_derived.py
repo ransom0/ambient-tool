@@ -92,3 +92,11 @@ def test_split_requested_fields_separates_raw_and_derived() -> None:
     )
     assert raw_fields == ["humidity", "tempf"]
     assert derived_fields == ["gust_delta", "spread"]
+
+def test_compute_derived_value_supports_mapping_style_row():
+    row = {
+        "tempf": 72.0,
+        "dew_point": 61.0,
+    }
+
+    assert compute_derived_value("spread", row) == 11.0

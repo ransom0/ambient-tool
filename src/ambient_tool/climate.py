@@ -42,6 +42,17 @@ class GrowingClimateSummary:
     longest_dry_streak: int
     recent_frost_nights: int
 
+@dataclass(frozen=True)
+class MoistureClimateSummary:
+    days: int
+    average_dew_point: float | None
+    muggy_days: int
+    very_dry_days: int
+    highest_dew_day: str | None
+    highest_dew_point: float | None
+    lowest_dew_day: str | None
+    lowest_dew_point: float | None
+
 def _to_float(value) -> float:
     if value is None:
         return 0.0
@@ -297,4 +308,86 @@ def build_growing_climate_summary(days: int) -> GrowingClimateSummary:
         rain_total=round(sum(daily_rain.values()), 2),
         longest_dry_streak=_longest_dry_streak(daily_rain),
         recent_frost_nights=recent_frost_nights,
+    )
+
+def build_moisture_climate_summary(days: int) -> MoistureClimateSummary:
+    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+
+    rows = get_observations_for_columns(
+        columns=[
+            "observation_time_utc",
+            "dew_point",
+        ],
+        since=since,
+    )
+
+    if not rows:
+        return MoistureClimateSummary(
+            days=days,
+            average_dew_point=None,
+            muggy_days=0,
+            very_dry_days=0,
+            highest_dew_day=None,
+            highest_dew_point=None,
+            lowest_dew_day=None,
+            lowest_dew_point=None,
+        )
+
+    daily_values: dict[str, list[float]] = {}
+
+    for row in rows:
+        day = str(row["observation_time_utc"])[:10]
+        dew = _to_optional_float(row["dew_point"])
+
+        if dew is None:
+            continue
+
+        daily_values.setdefault(day, []).append(dew)
+
+    if not daily_values:
+        return MoistureClimateSummary(
+            days=days,
+            average_dew_point=None,
+            muggy_days=0,
+            very_dry_days=0,
+            highest_dew_day=None,
+            highest_dew_point=None,
+            lowest_dew_day=None,
+            lowest_dew_point=None,
+        )
+
+    daily_avg = {
+        day: sum(values) / len(values)
+        for day, values in daily_values.items()
+    }
+
+    all_values = [
+        value
+        for values in daily_values.values()
+        for value in values
+    ]
+
+    average_dew_point = round(sum(all_values) / len(all_values), 1)
+    muggy_days = sum(1 for value in daily_avg.values() if value >= 65.0)
+    very_dry_days = sum(1 for value in daily_avg.values() if value <= 40.0)
+
+    highest_dew_day, highest_dew_point = max(
+        daily_avg.items(),
+        key=lambda item: item[1],
+    )
+
+    lowest_dew_day, lowest_dew_point = min(
+        daily_avg.items(),
+        key=lambda item: item[1],
+    )
+
+    return MoistureClimateSummary(
+        days=days,
+        average_dew_point=average_dew_point,
+        muggy_days=muggy_days,
+        very_dry_days=very_dry_days,
+        highest_dew_day=highest_dew_day,
+        highest_dew_point=round(highest_dew_point, 1),
+        lowest_dew_day=lowest_dew_day,
+        lowest_dew_point=round(lowest_dew_point, 1),
     )

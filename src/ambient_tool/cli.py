@@ -22,6 +22,7 @@ from ambient_tool.analyze import build_local_weather_analysis
 from ambient_tool.frost import build_frost_risk_report
 from ambient_tool.climate import (
     build_growing_climate_summary,
+    build_moisture_climate_summary,
     build_rain_climate_summary,
     build_temperature_climate_summary,
 )
@@ -437,6 +438,20 @@ def run_climate_temp(days: int) -> None:
     )
     print()
 
+def run_climate_moisture(days: int) -> None:
+    summary = build_moisture_climate_summary(days=days)
+
+    highest_day = summary.highest_dew_day or "N/A"
+    lowest_day = summary.lowest_dew_day or "N/A"
+
+    print(f"\nMoisture Climate Summary — last {days} day(s)\n")
+    print(f"Avg dew point:     {format_optional_float(summary.average_dew_point, '°F')}")
+    print(f"Muggy days:        {summary.muggy_days} day(s) >= 65°F")
+    print(f"Very dry days:     {summary.very_dry_days} day(s) <= 40°F")
+    print(f"Highest dew point: {highest_day} — {format_optional_float(summary.highest_dew_point, '°F')}")
+    print(f"Lowest dew point:  {lowest_day} — {format_optional_float(summary.lowest_dew_point, '°F')}")
+    print()
+
 def run_climate_summary(days: int) -> None:
     rain = build_rain_climate_summary(days=days)
     temp = build_temperature_climate_summary(days=days)
@@ -849,6 +864,16 @@ def build_parser():
         default=30,
         help="Number of days to summarize",
     )
+    climate_moisture_parser = climate_subparsers.add_parser(
+        "moisture",
+        help="Summarize moisture patterns over a longer local time window",
+    )
+    climate_moisture_parser.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Number of days to summarize",
+    )
     climate_temp_parser = climate_subparsers.add_parser(
         "temp",
         help="Summarize temperature over a longer local time window",
@@ -1030,6 +1055,8 @@ def main() -> None:
                 run_climate_temp(args.days)
             elif args.climate_command == "growing":
                 run_climate_growing(args.days)
+            elif args.climate_command == "moisture":
+                run_climate_moisture(args.days)
             elif args.climate_command == "summary":
                 run_climate_summary(args.days)
             else:

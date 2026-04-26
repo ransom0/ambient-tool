@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ambient_tool.climate import (
     build_growing_climate_summary,
+    build_moisture_climate_summary,
     build_rain_climate_summary,
     build_temperature_climate_summary,
 )
@@ -31,11 +32,16 @@ def test_build_rain_climate_summary(monkeypatch) -> None:
         },
     ]
 
+def test_build_moisture_climate_summary(monkeypatch) -> None:
+    rows = [
+        {"observation_time_utc": "2026-04-20T06:00:00+00:00", "dew_point": 68.0},
+        {"observation_time_utc": "2026-04-20T18:00:00+00:00", "dew_point": 70.0},
+        {"observation_time_utc": "2026-04-21T06:00:00+00:00", "dew_point": 35.0},
+        {"observation_time_utc": "2026-04-21T18:00:00+00:00", "dew_point": 39.0},
+    ]
+
     def fake_get_observations_for_columns(*, columns, since):
-        assert columns == [
-            "observation_time_utc",
-            "dailyrainin",
-        ]
+        assert columns == ["observation_time_utc", "dew_point"]
         assert since
         return rows
 
@@ -44,16 +50,33 @@ def test_build_rain_climate_summary(monkeypatch) -> None:
         fake_get_observations_for_columns,
     )
 
-    summary = build_rain_climate_summary(days=30)
+    summary = build_moisture_climate_summary(days=30)
 
     assert summary.days == 30
-    assert summary.total_rain == 1.65
-    assert summary.rain_days == 2
-    assert summary.dry_days == 28
-    assert summary.longest_dry_streak == 2
-    assert summary.average_per_rain_day == 0.82
-    assert summary.wettest_day == "2026-04-21"
-    assert summary.wettest_day_rain == 1.20
+    assert summary.average_dew_point == 53.0
+    assert summary.muggy_days == 1
+    assert summary.very_dry_days == 1
+    assert summary.highest_dew_day == "2026-04-20"
+    assert summary.highest_dew_point == 69.0
+    assert summary.lowest_dew_day == "2026-04-21"
+    assert summary.lowest_dew_point == 37.0
+
+
+def test_build_moisture_climate_summary_no_rows(monkeypatch) -> None:
+    def fake_get_observations_for_columns(*, columns, since):
+        return []
+
+    monkeypatch.setattr(
+        "ambient_tool.climate.get_observations_for_columns",
+        fake_get_observations_for_columns,
+    )
+
+    summary = build_moisture_climate_summary(days=30)
+
+    assert summary.average_dew_point is None
+    assert summary.muggy_days == 0
+    assert summary.very_dry_days == 0
+
 
 def test_build_growing_climate_summary(monkeypatch) -> None:
     rows = [

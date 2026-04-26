@@ -420,6 +420,12 @@ def run_climate_temp(days: int) -> None:
     print(f"Avg low:     {format_optional_float(summary.average_low, '°F')}")
     print(f"Hot days:    {summary.hot_days} day(s) >= 85°F")
     print(f"Cool nights: {summary.cool_nights} day(s) <= 45°F")
+    largest_range_day = summary.largest_range_day or "N/A"
+
+    print(
+        f"Largest range: {largest_range_day} — "
+        f"{format_optional_float(summary.largest_range_temp, '°F')}"
+    )
     print(
         f"Warmest day: {warmest_day} — "
         f"{format_optional_float(summary.warmest_day_temp, '°F')}"

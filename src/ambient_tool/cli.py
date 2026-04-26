@@ -436,6 +436,23 @@ def run_climate_temp(days: int) -> None:
     )
     print()
 
+def run_climate_summary(days: int) -> None:
+    rain = build_rain_climate_summary(days=days)
+    temp = build_temperature_climate_summary(days=days)
+
+    print(f"\nClimate Summary — last {days} day(s)\n")
+    print("Rain")
+    print(f"  Total:              {rain.total_rain:.2f} in")
+    print(f"  Rain days:          {rain.rain_days}")
+    print(f"  Longest dry streak: {rain.longest_dry_streak} day(s)")
+    print()
+    print("Temperature")
+    print(f"  Avg temp:           {format_optional_float(temp.average_temp, '°F')}")
+    print(f"  Avg high/low:       {format_optional_float(temp.average_high, '°F')} / {format_optional_float(temp.average_low, '°F')}")
+    print(f"  Hot days:           {temp.hot_days} day(s) >= 85°F")
+    print(f"  Cool nights:        {temp.cool_nights} day(s) <= 45°F")
+    print()
+
 def run_analyze(hours: int) -> None:
     frost_report = build_frost_risk_report(hours=hours)
 
@@ -829,6 +846,16 @@ def build_parser():
         default=30,
         help="Number of days to summarize",
     )
+    climate_summary_parser = climate_subparsers.add_parser(
+        "summary",
+        help="Summarize rain and temperature over a longer local time window",
+    )
+    climate_summary_parser.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Number of days to summarize",
+    )
 
     analyze_parser = subparsers.add_parser(
         "analyze",
@@ -978,6 +1005,8 @@ def main() -> None:
                 run_climate_rain(args.days)
             elif args.climate_command == "temp":
                 run_climate_temp(args.days)
+            elif args.climate_command == "summary":
+                run_climate_summary(args.days)
             else:
                 parser.error("Missing climate command. Try: ambient climate rain ...")
 

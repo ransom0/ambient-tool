@@ -1,0 +1,62 @@
+from __future__ import annotations
+
+from ambient_tool.climate import build_rain_climate_summary
+
+
+def test_build_rain_climate_summary(monkeypatch) -> None:
+    rows = [
+        {
+            "observation_time_utc": "2026-04-20T01:00:00+00:00",
+            "dailyrainin": 0.10,
+        },
+        {
+            "observation_time_utc": "2026-04-20T18:00:00+00:00",
+            "dailyrainin": 0.45,
+        },
+        {
+            "observation_time_utc": "2026-04-21T12:00:00+00:00",
+            "dailyrainin": 1.20,
+        },
+        {
+            "observation_time_utc": "2026-04-22T09:00:00+00:00",
+            "dailyrainin": 0.00,
+        },
+    ]
+
+    def fake_get_observations_for_columns(*, columns, since):
+        assert columns == [
+            "observation_time_utc",
+            "dailyrainin",
+        ]
+        assert since
+        return rows
+
+    monkeypatch.setattr(
+        "ambient_tool.climate.get_observations_for_columns",
+        fake_get_observations_for_columns,
+    )
+
+    summary = build_rain_climate_summary(days=30)
+
+    assert summary.days == 30
+    assert summary.total_rain == 1.65
+    assert summary.rain_days == 2
+    assert summary.wettest_day == "2026-04-21"
+    assert summary.wettest_day_rain == 1.20
+
+
+def test_build_rain_climate_summary_no_rows(monkeypatch) -> None:
+    def fake_get_observations_for_columns(*, columns, since):
+        return []
+
+    monkeypatch.setattr(
+        "ambient_tool.climate.get_observations_for_columns",
+        fake_get_observations_for_columns,
+    )
+
+    summary = build_rain_climate_summary(days=30)
+
+    assert summary.total_rain == 0.0
+    assert summary.rain_days == 0
+    assert summary.wettest_day is None
+    assert summary.wettest_day_rain == 0.0

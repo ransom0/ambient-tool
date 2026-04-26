@@ -20,6 +20,7 @@ from ambient_tool.export_csv import write_rows_to_csv
 from ambient_tool.export_json import write_rows_to_json
 from ambient_tool.analyze import build_local_weather_analysis
 from ambient_tool.frost import build_frost_risk_report
+from ambient_tool.climate import build_rain_climate_summary
 from ambient_tool.query import (
     get_grouped_fieldnames,
     get_grouped_observations_for_columns,
@@ -383,6 +384,17 @@ def run_frost(hours: int) -> None:
     print(f"Current dew pt: {format_frost_value(report.current_dew_point, '°F')}")
     print(f"Temp spread:    {format_frost_value(report.spread, '°F')}")
     print(f"Current wind:   {format_frost_value(report.current_wind_mph, 'mph')}")
+    print()
+
+def run_climate_rain(days: int) -> None:
+    summary = build_rain_climate_summary(days=days)
+
+    wettest_day = summary.wettest_day or "N/A"
+
+    print(f"\nRain Climate Summary — last {days} day(s)\n")
+    print(f"Total rain:  {summary.total_rain:.2f} in")
+    print(f"Rain days:   {summary.rain_days}")
+    print(f"Wettest day: {wettest_day} — {summary.wettest_day_rain:.2f} in")
     print()
 
 def run_analyze(hours: int) -> None:
@@ -752,6 +764,23 @@ def build_parser():
         help="Number of hours to look back",
     )
 
+    climate_parser = subparsers.add_parser(
+        "climate",
+        help="Summarize longer-term local weather patterns",
+    )
+    climate_subparsers = climate_parser.add_subparsers(dest="climate_command")
+
+    climate_rain_parser = climate_subparsers.add_parser(
+        "rain",
+        help="Summarize rainfall over a longer local time window",
+    )
+    climate_rain_parser.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Number of days to summarize",
+    )
+
     analyze_parser = subparsers.add_parser(
         "analyze",
         help="Interpret recent local weather conditions",
@@ -894,6 +923,12 @@ def main() -> None:
 
         elif command == "frost":
             run_frost(args.hours)
+
+        elif command == "climate":
+            if args.climate_command == "rain":
+                run_climate_rain(args.days)
+            else:
+                parser.error("Missing climate command. Try: ambient climate rain ...")
 
         elif command == "analyze":
             run_analyze(args.hours)

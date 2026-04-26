@@ -27,6 +27,8 @@ class TemperatureClimateSummary:
     warmest_day_temp: float | None
     coolest_day: str | None
     coolest_day_temp: float | None
+    hot_days: int
+    cool_nights: int
 
 def _to_float(value) -> float:
     if value is None:
@@ -134,6 +136,8 @@ def build_temperature_climate_summary(days: int) -> TemperatureClimateSummary:
             warmest_day_temp=None,
             coolest_day=None,
             coolest_day_temp=None,
+            hot_days=0,
+            cool_nights=0,
         )
 
     daily_values: dict[str, list[float]] = {}
@@ -157,7 +161,9 @@ def build_temperature_climate_summary(days: int) -> TemperatureClimateSummary:
             warmest_day=None,
             warmest_day_temp=None,
             coolest_day=None,
-            coolest_day_temp=None,
+            coolest_day_temp=float | None,
+            hot_days=0,
+            cool_nights=0,
         )
 
     daily_highs = {
@@ -168,6 +174,9 @@ def build_temperature_climate_summary(days: int) -> TemperatureClimateSummary:
         day: min(values)
         for day, values in daily_values.items()
     }
+
+    hot_days = sum(1 for value in daily_highs.values() if value >= 85.0)
+    cool_nights = sum(1 for value in daily_lows.values() if value <= 45.0)
 
     all_values = [
         value
@@ -197,4 +206,6 @@ def build_temperature_climate_summary(days: int) -> TemperatureClimateSummary:
         warmest_day_temp=round(warmest_day_temp, 1),
         coolest_day=coolest_day,
         coolest_day_temp=round(coolest_day_temp, 1),
+        hot_days=hot_days,
+        cool_nights=cool_nights,
     )

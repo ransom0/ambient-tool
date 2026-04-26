@@ -117,6 +117,8 @@ def test_build_temperature_climate_summary(monkeypatch) -> None:
     assert summary.warmest_day_temp == 90.0
     assert summary.coolest_day == "2026-04-20"
     assert summary.coolest_day_temp == 50.0
+    assert summary.hot_days == 1
+    assert summary.cool_nights == 0
 
 
 def test_build_temperature_climate_summary_no_rows(monkeypatch) -> None:
@@ -138,3 +140,5 @@ def test_build_temperature_climate_summary_no_rows(monkeypatch) -> None:
     assert summary.warmest_day_temp is None
     assert summary.coolest_day is None
     assert summary.coolest_day_temp is None
+    assert summary.hot_days == 0
+    assert summary.cool_nights == 0

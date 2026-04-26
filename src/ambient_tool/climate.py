@@ -32,6 +32,16 @@ class TemperatureClimateSummary:
     largest_range_day: str | None
     largest_range_temp: float | None
 
+@dataclass(frozen=True)
+class GrowingClimateSummary:
+    days: int
+    warm_days: int
+    hot_stress_days: int
+    cool_nights: int
+    rain_total: float
+    longest_dry_streak: int
+    recent_frost_nights: int
+
 def _to_float(value) -> float:
     if value is None:
         return 0.0
@@ -165,7 +175,7 @@ def build_temperature_climate_summary(days: int) -> TemperatureClimateSummary:
             warmest_day=None,
             warmest_day_temp=None,
             coolest_day=None,
-            coolest_day_temp=float | None,
+            coolest_day_temp=None,
             hot_days=0,
             cool_nights=0,
             largest_range_day=None,
@@ -225,4 +235,66 @@ def build_temperature_climate_summary(days: int) -> TemperatureClimateSummary:
         cool_nights=cool_nights,
         largest_range_day=largest_range_day,
         largest_range_temp=round(largest_range_temp, 1),
+    )
+
+def build_growing_climate_summary(days: int) -> GrowingClimateSummary:
+    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+
+    rows = get_observations_for_columns(
+        columns=[
+            "observation_time_utc",
+            "tempf",
+            "dailyrainin",
+        ],
+        since=since,
+    )
+
+    if not rows:
+        return GrowingClimateSummary(
+            days=days,
+            warm_days=0,
+            hot_stress_days=0,
+            cool_nights=0,
+            rain_total=0.0,
+            longest_dry_streak=days,
+            recent_frost_nights=0,
+        )
+
+    daily_temps: dict[str, list[float]] = {}
+    daily_rain: dict[str, float] = {}
+
+    for row in rows:
+        date_key = str(row["observation_time_utc"])[:10]
+
+        temp = _to_optional_float(row["tempf"])
+        if temp is not None:
+            daily_temps.setdefault(date_key, []).append(temp)
+
+        rain = _to_float(row["dailyrainin"])
+        previous_rain = daily_rain.get(date_key)
+        if previous_rain is None or rain > previous_rain:
+            daily_rain[date_key] = rain
+
+    daily_highs = {
+        day: max(values)
+        for day, values in daily_temps.items()
+    }
+    daily_lows = {
+        day: min(values)
+        for day, values in daily_temps.items()
+    }
+
+    warm_days = sum(1 for value in daily_highs.values() if value >= 70.0)
+    hot_stress_days = sum(1 for value in daily_highs.values() if value >= 90.0)
+    cool_nights = sum(1 for value in daily_lows.values() if value < 50.0)
+    recent_frost_nights = sum(1 for value in daily_lows.values() if value <= 36.0)
+
+    return GrowingClimateSummary(
+        days=days,
+        warm_days=warm_days,
+        hot_stress_days=hot_stress_days,
+        cool_nights=cool_nights,
+        rain_total=round(sum(daily_rain.values()), 2),
+        longest_dry_streak=_longest_dry_streak(daily_rain),
+        recent_frost_nights=recent_frost_nights,
     )

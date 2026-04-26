@@ -21,6 +21,7 @@ from ambient_tool.export_json import write_rows_to_json
 from ambient_tool.analyze import build_local_weather_analysis
 from ambient_tool.frost import build_frost_risk_report
 from ambient_tool.climate import (
+    build_growing_climate_summary,
     build_rain_climate_summary,
     build_temperature_climate_summary,
 )
@@ -453,6 +454,18 @@ def run_climate_summary(days: int) -> None:
     print(f"  Cool nights:        {temp.cool_nights} day(s) <= 45°F")
     print()
 
+def run_climate_growing(days: int) -> None:
+    summary = build_growing_climate_summary(days=days)
+
+    print(f"\nGrowing Conditions — last {days} day(s)\n")
+    print(f"Warm days (>=70°F):       {summary.warm_days}")
+    print(f"Hot stress days (>=90°F): {summary.hot_stress_days}")
+    print(f"Cool nights (<50°F):      {summary.cool_nights}")
+    print(f"Rain total:               {summary.rain_total:.2f} in")
+    print(f"Longest dry streak:       {summary.longest_dry_streak} day(s)")
+    print(f"Frost risk nights:        {summary.recent_frost_nights} night(s) <= 36°F")
+    print()
+
 def run_analyze(hours: int) -> None:
     frost_report = build_frost_risk_report(hours=hours)
 
@@ -846,6 +859,16 @@ def build_parser():
         default=30,
         help="Number of days to summarize",
     )
+    climate_growing_parser = climate_subparsers.add_parser(
+        "growing",
+        help="Summarize growing-condition signals over a local time window",
+    )
+    climate_growing_parser.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Number of days to summarize",
+    )
     climate_summary_parser = climate_subparsers.add_parser(
         "summary",
         help="Summarize rain and temperature over a longer local time window",
@@ -1005,6 +1028,8 @@ def main() -> None:
                 run_climate_rain(args.days)
             elif args.climate_command == "temp":
                 run_climate_temp(args.days)
+            elif args.climate_command == "growing":
+                run_climate_growing(args.days)
             elif args.climate_command == "summary":
                 run_climate_summary(args.days)
             else:

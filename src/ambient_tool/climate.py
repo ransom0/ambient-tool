@@ -11,6 +11,8 @@ class RainClimateSummary:
     days: int
     total_rain: float
     rain_days: int
+    dry_days: int
+    average_per_rain_day: float
     wettest_day: str | None
     wettest_day_rain: float
 
@@ -37,6 +39,8 @@ def build_rain_climate_summary(days: int) -> RainClimateSummary:
             days=days,
             total_rain=0.0,
             rain_days=0,
+            dry_days=days,
+            average_per_rain_day=0.0,
             wettest_day=None,
             wettest_day_rain=0.0,
         )
@@ -55,7 +59,8 @@ def build_rain_climate_summary(days: int) -> RainClimateSummary:
 
     total_rain = round(sum(daily_max.values()), 2)
     rain_days = sum(1 for value in daily_max.values() if value > 0)
-
+    dry_days = max(days - rain_days, 0)
+    average_per_rain_day = round(total_rain / rain_days, 2) if rain_days else 0.0
     wettest_day = None
     wettest_day_rain = 0.0
 
@@ -68,6 +73,8 @@ def build_rain_climate_summary(days: int) -> RainClimateSummary:
         days=days,
         total_rain=total_rain,
         rain_days=rain_days,
+        dry_days=dry_days,
+        average_per_rain_day=average_per_rain_day,
         wettest_day=wettest_day,
         wettest_day_rain=round(wettest_day_rain, 2),
     )

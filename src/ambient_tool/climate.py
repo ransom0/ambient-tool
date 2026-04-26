@@ -17,10 +17,25 @@ class RainClimateSummary:
     wettest_day: str | None
     wettest_day_rain: float
 
+@dataclass(frozen=True)
+class TemperatureClimateSummary:
+    days: int
+    average_temp: float | None
+    average_high: float | None
+    average_low: float | None
+    warmest_day: str | None
+    warmest_day_temp: float | None
+    coolest_day: str | None
+    coolest_day_temp: float | None
 
 def _to_float(value) -> float:
     if value is None:
         return 0.0
+    return float(value)
+
+def _to_optional_float(value) -> float | None:
+    if value is None:
+        return None
     return float(value)
 
 def _longest_dry_streak(daily_rain: dict[str, float]) -> int:
@@ -96,4 +111,90 @@ def build_rain_climate_summary(days: int) -> RainClimateSummary:
         longest_dry_streak=longest_dry_streak,
         wettest_day=wettest_day,
         wettest_day_rain=round(wettest_day_rain, 2),
+    )
+
+def build_temperature_climate_summary(days: int) -> TemperatureClimateSummary:
+    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+
+    rows = get_observations_for_columns(
+        columns=[
+            "observation_time_utc",
+            "tempf",
+        ],
+        since=since,
+    )
+
+    if not rows:
+        return TemperatureClimateSummary(
+            days=days,
+            average_temp=None,
+            average_high=None,
+            average_low=None,
+            warmest_day=None,
+            warmest_day_temp=None,
+            coolest_day=None,
+            coolest_day_temp=None,
+        )
+
+    daily_values: dict[str, list[float]] = {}
+
+    for row in rows:
+        ts = row["observation_time_utc"]
+        date_key = str(ts)[:10]
+        temp = _to_optional_float(row["tempf"])
+
+        if temp is None:
+            continue
+
+        daily_values.setdefault(date_key, []).append(temp)
+
+    if not daily_values:
+        return TemperatureClimateSummary(
+            days=days,
+            average_temp=None,
+            average_high=None,
+            average_low=None,
+            warmest_day=None,
+            warmest_day_temp=None,
+            coolest_day=None,
+            coolest_day_temp=None,
+        )
+
+    daily_highs = {
+        day: max(values)
+        for day, values in daily_values.items()
+    }
+    daily_lows = {
+        day: min(values)
+        for day, values in daily_values.items()
+    }
+
+    all_values = [
+        value
+        for values in daily_values.values()
+        for value in values
+    ]
+
+    average_temp = round(sum(all_values) / len(all_values), 1)
+    average_high = round(sum(daily_highs.values()) / len(daily_highs), 1)
+    average_low = round(sum(daily_lows.values()) / len(daily_lows), 1)
+
+    warmest_day, warmest_day_temp = max(
+        daily_highs.items(),
+        key=lambda item: item[1],
+    )
+    coolest_day, coolest_day_temp = min(
+        daily_lows.items(),
+        key=lambda item: item[1],
+    )
+
+    return TemperatureClimateSummary(
+        days=days,
+        average_temp=average_temp,
+        average_high=average_high,
+        average_low=average_low,
+        warmest_day=warmest_day,
+        warmest_day_temp=round(warmest_day_temp, 1),
+        coolest_day=coolest_day,
+        coolest_day_temp=round(coolest_day_temp, 1),
     )

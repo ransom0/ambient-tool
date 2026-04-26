@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from ambient_tool.climate import build_rain_climate_summary
+from ambient_tool.climate import (
+    build_rain_climate_summary,
+    build_temperature_climate_summary,
+)
 
 
 def test_build_rain_climate_summary(monkeypatch) -> None:
@@ -70,3 +73,68 @@ def test_build_rain_climate_summary_no_rows(monkeypatch) -> None:
     assert summary.longest_dry_streak == 30
     assert summary.wettest_day is None
     assert summary.wettest_day_rain == 0.0
+
+def test_build_temperature_climate_summary(monkeypatch) -> None:
+    rows = [
+        {
+            "observation_time_utc": "2026-04-20T06:00:00+00:00",
+            "tempf": 50.0,
+        },
+        {
+            "observation_time_utc": "2026-04-20T18:00:00+00:00",
+            "tempf": 80.0,
+        },
+        {
+            "observation_time_utc": "2026-04-21T06:00:00+00:00",
+            "tempf": 60.0,
+        },
+        {
+            "observation_time_utc": "2026-04-21T18:00:00+00:00",
+            "tempf": 90.0,
+        },
+    ]
+
+    def fake_get_observations_for_columns(*, columns, since):
+        assert columns == [
+            "observation_time_utc",
+            "tempf",
+        ]
+        assert since
+        return rows
+
+    monkeypatch.setattr(
+        "ambient_tool.climate.get_observations_for_columns",
+        fake_get_observations_for_columns,
+    )
+
+    summary = build_temperature_climate_summary(days=30)
+
+    assert summary.days == 30
+    assert summary.average_temp == 70.0
+    assert summary.average_high == 85.0
+    assert summary.average_low == 55.0
+    assert summary.warmest_day == "2026-04-21"
+    assert summary.warmest_day_temp == 90.0
+    assert summary.coolest_day == "2026-04-20"
+    assert summary.coolest_day_temp == 50.0
+
+
+def test_build_temperature_climate_summary_no_rows(monkeypatch) -> None:
+    def fake_get_observations_for_columns(*, columns, since):
+        return []
+
+    monkeypatch.setattr(
+        "ambient_tool.climate.get_observations_for_columns",
+        fake_get_observations_for_columns,
+    )
+
+    summary = build_temperature_climate_summary(days=30)
+
+    assert summary.days == 30
+    assert summary.average_temp is None
+    assert summary.average_high is None
+    assert summary.average_low is None
+    assert summary.warmest_day is None
+    assert summary.warmest_day_temp is None
+    assert summary.coolest_day is None
+    assert summary.coolest_day_temp is None

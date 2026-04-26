@@ -392,11 +392,12 @@ def run_climate_rain(days: int) -> None:
     wettest_day = summary.wettest_day or "N/A"
 
     print(f"\nRain Climate Summary — last {days} day(s)\n")
-    print(f"Total rain:  {summary.total_rain:.2f} in")
-    print(f"Rain days:   {summary.rain_days}")
-    print(f"Dry days:    {summary.dry_days}")
-    print(f"Avg per rain day: {summary.average_per_rain_day:.2f} in")
-    print(f"Wettest day: {wettest_day} — {summary.wettest_day_rain:.2f} in")
+    print(f"Total rain:         {summary.total_rain:.2f} in")
+    print(f"Rain days:          {summary.rain_days}")
+    print(f"Dry days:           {summary.dry_days}")
+    print(f"Avg per rain day:   {summary.average_per_rain_day:.2f} in")
+    print(f"Longest dry streak: {summary.longest_dry_streak} day(s)")
+    print(f"Wettest day:        {wettest_day} — {summary.wettest_day_rain:.2f} in")
     print()
 
 def run_analyze(hours: int) -> None:

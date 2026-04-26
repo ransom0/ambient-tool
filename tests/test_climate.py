@@ -15,10 +15,14 @@ def test_build_rain_climate_summary(monkeypatch) -> None:
         },
         {
             "observation_time_utc": "2026-04-21T12:00:00+00:00",
-            "dailyrainin": 1.20,
+        "dailyrainin": 1.20,
         },
         {
             "observation_time_utc": "2026-04-22T09:00:00+00:00",
+            "dailyrainin": 0.00,
+        },
+        {
+            "observation_time_utc": "2026-04-23T09:00:00+00:00",
             "dailyrainin": 0.00,
         },
     ]
@@ -42,6 +46,7 @@ def test_build_rain_climate_summary(monkeypatch) -> None:
     assert summary.total_rain == 1.65
     assert summary.rain_days == 2
     assert summary.dry_days == 28
+    assert summary.longest_dry_streak == 2
     assert summary.average_per_rain_day == 0.82
     assert summary.wettest_day == "2026-04-21"
     assert summary.wettest_day_rain == 1.20
@@ -62,5 +67,6 @@ def test_build_rain_climate_summary_no_rows(monkeypatch) -> None:
     assert summary.rain_days == 0
     assert summary.dry_days == 30
     assert summary.average_per_rain_day == 0.0
+    assert summary.longest_dry_streak == 30
     assert summary.wettest_day is None
     assert summary.wettest_day_rain == 0.0
